@@ -74,7 +74,7 @@ typedef struct _zend_literal {
 #define Z_HASH_P(zv) \
 	(((zend_literal*)(zv))->hash_value)
 
-typedef union _znode_op {	
+typedef union _znode_op {
 	zend_uint      constant;
 	zend_uint      var;
 	zend_uint      num;
@@ -86,7 +86,7 @@ typedef union _znode_op {
 	void          *ptr;        /* Used for passing pointers from the compile to execution phase, currently used for traits */
 } znode_op;
 
-typedef struct _znode { /* used only during compilation */ 
+typedef struct _znode { /* used only during compilation */
 	int op_type;
 	union {
 		znode_op op;
@@ -597,7 +597,7 @@ void zend_add_to_list(void *result, void *item TSRMLS_DC);
 void zend_do_cast(znode *result, const znode *expr, int type TSRMLS_DC);
 void zend_do_include_or_eval(int type, znode *result, const znode *op1 TSRMLS_DC);
 
-void zend_do_unset(const znode *variable TSRMLS_DC);
+void zend_do_unset(znode *result, const znode *variable TSRMLS_DC);
 void zend_do_isset_or_isempty(int type, znode *result, znode *variable TSRMLS_DC);
 
 void zend_do_instanceof(znode *result, const znode *expr, const znode *class_znode, int type TSRMLS_DC);

@@ -3874,6 +3874,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_CONST_CONST_HANDLER(ZEND_OPCODE_HA
 	zval tmp, *varname;
 	HashTable *target_symbol_table;
 
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	if (IS_CONST == IS_CV &&
@@ -3882,12 +3883,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_CONST_CONST_HANDLER(ZEND_OPCODE_HA
 		if (EG(active_symbol_table)) {
 			zend_compiled_variable *cv = &CV_DEF_OF(opline->op1.var);
 
-			zend_delete_variable(EX(prev_execute_data), EG(active_symbol_table),  cv->name, cv->name_len+1, cv->hash_value TSRMLS_CC);
+			result = zend_delete_variable(EX(prev_execute_data), EG(active_symbol_table),  cv->name, cv->name_len+1, cv->hash_value TSRMLS_CC);
 			EX_CV(opline->op1.var) = NULL;
 		} else if (EX_CV(opline->op1.var)) {
 			zval_ptr_dtor(EX_CV(opline->op1.var));
+			result = SUCCESS;
 			EX_CV(opline->op1.var) = NULL;
 		}
+		ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 		CHECK_EXCEPTION();
 		ZEND_VM_NEXT_OPCODE();
 	}
@@ -3917,6 +3920,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_CONST_CONST_HANDLER(ZEND_OPCODE_HA
 					} else if (IS_CONST == IS_VAR || IS_CONST == IS_CV) {
 						zval_ptr_dtor(&varname);
 					}
+					ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, 0);
 
 					CHECK_EXCEPTION();
 					ZEND_VM_NEXT_OPCODE();
@@ -3926,13 +3930,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_CONST_CONST_HANDLER(ZEND_OPCODE_HA
 		} else {
 			ce = EX_T(opline->op2.var).class_entry;
 		}
-		zend_std_unset_static_property(ce, Z_STRVAL_P(varname), Z_STRLEN_P(varname), ((IS_CONST == IS_CONST) ? opline->op1.literal : NULL) TSRMLS_CC);
+		result = zend_std_unset_static_property(ce, Z_STRVAL_P(varname), Z_STRLEN_P(varname), ((IS_CONST == IS_CONST) ? opline->op1.literal : NULL) TSRMLS_CC);
 	} else {
 		ulong hash_value = zend_inline_hash_func(varname->value.str.val, varname->value.str.len+1);
 
 		target_symbol_table = zend_get_target_symbol_table(opline->extended_value & ZEND_FETCH_TYPE_MASK TSRMLS_CC);
-		zend_delete_variable(execute_data, target_symbol_table, varname->value.str.val, varname->value.str.len+1, hash_value TSRMLS_CC);
+		result = zend_delete_variable(execute_data, target_symbol_table, varname->value.str.val, varname->value.str.len+1, hash_value TSRMLS_CC);
 	}
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	if (IS_CONST != IS_CONST && varname == &tmp) {
 		zval_dtor(&tmp);
@@ -5635,6 +5640,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_CONST_VAR_HANDLER(ZEND_OPCODE_HAND
 	zval tmp, *varname;
 	HashTable *target_symbol_table;
 
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	if (IS_CONST == IS_CV &&
@@ -5643,12 +5649,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_CONST_VAR_HANDLER(ZEND_OPCODE_HAND
 		if (EG(active_symbol_table)) {
 			zend_compiled_variable *cv = &CV_DEF_OF(opline->op1.var);
 
-			zend_delete_variable(EX(prev_execute_data), EG(active_symbol_table),  cv->name, cv->name_len+1, cv->hash_value TSRMLS_CC);
+			result = zend_delete_variable(EX(prev_execute_data), EG(active_symbol_table),  cv->name, cv->name_len+1, cv->hash_value TSRMLS_CC);
 			EX_CV(opline->op1.var) = NULL;
 		} else if (EX_CV(opline->op1.var)) {
 			zval_ptr_dtor(EX_CV(opline->op1.var));
+			result = SUCCESS;
 			EX_CV(opline->op1.var) = NULL;
 		}
+		ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 		CHECK_EXCEPTION();
 		ZEND_VM_NEXT_OPCODE();
 	}
@@ -5678,6 +5686,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_CONST_VAR_HANDLER(ZEND_OPCODE_HAND
 					} else if (IS_CONST == IS_VAR || IS_CONST == IS_CV) {
 						zval_ptr_dtor(&varname);
 					}
+					ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, 0);
 
 					CHECK_EXCEPTION();
 					ZEND_VM_NEXT_OPCODE();
@@ -5687,13 +5696,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_CONST_VAR_HANDLER(ZEND_OPCODE_HAND
 		} else {
 			ce = EX_T(opline->op2.var).class_entry;
 		}
-		zend_std_unset_static_property(ce, Z_STRVAL_P(varname), Z_STRLEN_P(varname), ((IS_CONST == IS_CONST) ? opline->op1.literal : NULL) TSRMLS_CC);
+		result = zend_std_unset_static_property(ce, Z_STRVAL_P(varname), Z_STRLEN_P(varname), ((IS_CONST == IS_CONST) ? opline->op1.literal : NULL) TSRMLS_CC);
 	} else {
 		ulong hash_value = zend_inline_hash_func(varname->value.str.val, varname->value.str.len+1);
 
 		target_symbol_table = zend_get_target_symbol_table(opline->extended_value & ZEND_FETCH_TYPE_MASK TSRMLS_CC);
-		zend_delete_variable(execute_data, target_symbol_table, varname->value.str.val, varname->value.str.len+1, hash_value TSRMLS_CC);
+		result = zend_delete_variable(execute_data, target_symbol_table, varname->value.str.val, varname->value.str.len+1, hash_value TSRMLS_CC);
 	}
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	if (IS_CONST != IS_CONST && varname == &tmp) {
 		zval_dtor(&tmp);
@@ -6335,6 +6345,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_CONST_UNUSED_HANDLER(ZEND_OPCODE_H
 	zval tmp, *varname;
 	HashTable *target_symbol_table;
 
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	if (IS_CONST == IS_CV &&
@@ -6343,12 +6354,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_CONST_UNUSED_HANDLER(ZEND_OPCODE_H
 		if (EG(active_symbol_table)) {
 			zend_compiled_variable *cv = &CV_DEF_OF(opline->op1.var);
 
-			zend_delete_variable(EX(prev_execute_data), EG(active_symbol_table),  cv->name, cv->name_len+1, cv->hash_value TSRMLS_CC);
+			result = zend_delete_variable(EX(prev_execute_data), EG(active_symbol_table),  cv->name, cv->name_len+1, cv->hash_value TSRMLS_CC);
 			EX_CV(opline->op1.var) = NULL;
 		} else if (EX_CV(opline->op1.var)) {
 			zval_ptr_dtor(EX_CV(opline->op1.var));
+			result = SUCCESS;
 			EX_CV(opline->op1.var) = NULL;
 		}
+		ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 		CHECK_EXCEPTION();
 		ZEND_VM_NEXT_OPCODE();
 	}
@@ -6378,6 +6391,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_CONST_UNUSED_HANDLER(ZEND_OPCODE_H
 					} else if (IS_CONST == IS_VAR || IS_CONST == IS_CV) {
 						zval_ptr_dtor(&varname);
 					}
+					ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, 0);
 
 					CHECK_EXCEPTION();
 					ZEND_VM_NEXT_OPCODE();
@@ -6387,13 +6401,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_CONST_UNUSED_HANDLER(ZEND_OPCODE_H
 		} else {
 			ce = EX_T(opline->op2.var).class_entry;
 		}
-		zend_std_unset_static_property(ce, Z_STRVAL_P(varname), Z_STRLEN_P(varname), ((IS_CONST == IS_CONST) ? opline->op1.literal : NULL) TSRMLS_CC);
+		result = zend_std_unset_static_property(ce, Z_STRVAL_P(varname), Z_STRLEN_P(varname), ((IS_CONST == IS_CONST) ? opline->op1.literal : NULL) TSRMLS_CC);
 	} else {
 		ulong hash_value = zend_inline_hash_func(varname->value.str.val, varname->value.str.len+1);
 
 		target_symbol_table = zend_get_target_symbol_table(opline->extended_value & ZEND_FETCH_TYPE_MASK TSRMLS_CC);
-		zend_delete_variable(execute_data, target_symbol_table, varname->value.str.val, varname->value.str.len+1, hash_value TSRMLS_CC);
+		result = zend_delete_variable(execute_data, target_symbol_table, varname->value.str.val, varname->value.str.len+1, hash_value TSRMLS_CC);
 	}
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	if (IS_CONST != IS_CONST && varname == &tmp) {
 		zval_dtor(&tmp);
@@ -9157,6 +9172,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_TMP_CONST_HANDLER(ZEND_OPCODE_HAND
 	zval tmp, *varname;
 	HashTable *target_symbol_table;
 	zend_free_op free_op1;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	if (IS_TMP_VAR == IS_CV &&
@@ -9165,12 +9181,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_TMP_CONST_HANDLER(ZEND_OPCODE_HAND
 		if (EG(active_symbol_table)) {
 			zend_compiled_variable *cv = &CV_DEF_OF(opline->op1.var);
 
-			zend_delete_variable(EX(prev_execute_data), EG(active_symbol_table),  cv->name, cv->name_len+1, cv->hash_value TSRMLS_CC);
+			result = zend_delete_variable(EX(prev_execute_data), EG(active_symbol_table),  cv->name, cv->name_len+1, cv->hash_value TSRMLS_CC);
 			EX_CV(opline->op1.var) = NULL;
 		} else if (EX_CV(opline->op1.var)) {
 			zval_ptr_dtor(EX_CV(opline->op1.var));
+			result = SUCCESS;
 			EX_CV(opline->op1.var) = NULL;
 		}
+		ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 		CHECK_EXCEPTION();
 		ZEND_VM_NEXT_OPCODE();
 	}
@@ -9200,6 +9218,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_TMP_CONST_HANDLER(ZEND_OPCODE_HAND
 					} else if (IS_TMP_VAR == IS_VAR || IS_TMP_VAR == IS_CV) {
 						zval_ptr_dtor(&varname);
 					}
+					ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, 0);
 					zval_dtor(free_op1.var);
 					CHECK_EXCEPTION();
 					ZEND_VM_NEXT_OPCODE();
@@ -9209,13 +9228,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_TMP_CONST_HANDLER(ZEND_OPCODE_HAND
 		} else {
 			ce = EX_T(opline->op2.var).class_entry;
 		}
-		zend_std_unset_static_property(ce, Z_STRVAL_P(varname), Z_STRLEN_P(varname), ((IS_TMP_VAR == IS_CONST) ? opline->op1.literal : NULL) TSRMLS_CC);
+		result = zend_std_unset_static_property(ce, Z_STRVAL_P(varname), Z_STRLEN_P(varname), ((IS_TMP_VAR == IS_CONST) ? opline->op1.literal : NULL) TSRMLS_CC);
 	} else {
 		ulong hash_value = zend_inline_hash_func(varname->value.str.val, varname->value.str.len+1);
 
 		target_symbol_table = zend_get_target_symbol_table(opline->extended_value & ZEND_FETCH_TYPE_MASK TSRMLS_CC);
-		zend_delete_variable(execute_data, target_symbol_table, varname->value.str.val, varname->value.str.len+1, hash_value TSRMLS_CC);
+		result = zend_delete_variable(execute_data, target_symbol_table, varname->value.str.val, varname->value.str.len+1, hash_value TSRMLS_CC);
 	}
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	if (IS_TMP_VAR != IS_CONST && varname == &tmp) {
 		zval_dtor(&tmp);
@@ -10886,6 +10906,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_TMP_VAR_HANDLER(ZEND_OPCODE_HANDLE
 	zval tmp, *varname;
 	HashTable *target_symbol_table;
 	zend_free_op free_op1;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	if (IS_TMP_VAR == IS_CV &&
@@ -10894,12 +10915,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_TMP_VAR_HANDLER(ZEND_OPCODE_HANDLE
 		if (EG(active_symbol_table)) {
 			zend_compiled_variable *cv = &CV_DEF_OF(opline->op1.var);
 
-			zend_delete_variable(EX(prev_execute_data), EG(active_symbol_table),  cv->name, cv->name_len+1, cv->hash_value TSRMLS_CC);
+			result = zend_delete_variable(EX(prev_execute_data), EG(active_symbol_table),  cv->name, cv->name_len+1, cv->hash_value TSRMLS_CC);
 			EX_CV(opline->op1.var) = NULL;
 		} else if (EX_CV(opline->op1.var)) {
 			zval_ptr_dtor(EX_CV(opline->op1.var));
+			result = SUCCESS;
 			EX_CV(opline->op1.var) = NULL;
 		}
+		ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 		CHECK_EXCEPTION();
 		ZEND_VM_NEXT_OPCODE();
 	}
@@ -10929,6 +10952,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_TMP_VAR_HANDLER(ZEND_OPCODE_HANDLE
 					} else if (IS_TMP_VAR == IS_VAR || IS_TMP_VAR == IS_CV) {
 						zval_ptr_dtor(&varname);
 					}
+					ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, 0);
 					zval_dtor(free_op1.var);
 					CHECK_EXCEPTION();
 					ZEND_VM_NEXT_OPCODE();
@@ -10938,13 +10962,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_TMP_VAR_HANDLER(ZEND_OPCODE_HANDLE
 		} else {
 			ce = EX_T(opline->op2.var).class_entry;
 		}
-		zend_std_unset_static_property(ce, Z_STRVAL_P(varname), Z_STRLEN_P(varname), ((IS_TMP_VAR == IS_CONST) ? opline->op1.literal : NULL) TSRMLS_CC);
+		result = zend_std_unset_static_property(ce, Z_STRVAL_P(varname), Z_STRLEN_P(varname), ((IS_TMP_VAR == IS_CONST) ? opline->op1.literal : NULL) TSRMLS_CC);
 	} else {
 		ulong hash_value = zend_inline_hash_func(varname->value.str.val, varname->value.str.len+1);
 
 		target_symbol_table = zend_get_target_symbol_table(opline->extended_value & ZEND_FETCH_TYPE_MASK TSRMLS_CC);
-		zend_delete_variable(execute_data, target_symbol_table, varname->value.str.val, varname->value.str.len+1, hash_value TSRMLS_CC);
+		result = zend_delete_variable(execute_data, target_symbol_table, varname->value.str.val, varname->value.str.len+1, hash_value TSRMLS_CC);
 	}
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	if (IS_TMP_VAR != IS_CONST && varname == &tmp) {
 		zval_dtor(&tmp);
@@ -11465,6 +11490,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_TMP_UNUSED_HANDLER(ZEND_OPCODE_HAN
 	zval tmp, *varname;
 	HashTable *target_symbol_table;
 	zend_free_op free_op1;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	if (IS_TMP_VAR == IS_CV &&
@@ -11473,12 +11499,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_TMP_UNUSED_HANDLER(ZEND_OPCODE_HAN
 		if (EG(active_symbol_table)) {
 			zend_compiled_variable *cv = &CV_DEF_OF(opline->op1.var);
 
-			zend_delete_variable(EX(prev_execute_data), EG(active_symbol_table),  cv->name, cv->name_len+1, cv->hash_value TSRMLS_CC);
+			result = zend_delete_variable(EX(prev_execute_data), EG(active_symbol_table),  cv->name, cv->name_len+1, cv->hash_value TSRMLS_CC);
 			EX_CV(opline->op1.var) = NULL;
 		} else if (EX_CV(opline->op1.var)) {
 			zval_ptr_dtor(EX_CV(opline->op1.var));
+			result = SUCCESS;
 			EX_CV(opline->op1.var) = NULL;
 		}
+		ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 		CHECK_EXCEPTION();
 		ZEND_VM_NEXT_OPCODE();
 	}
@@ -11508,6 +11536,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_TMP_UNUSED_HANDLER(ZEND_OPCODE_HAN
 					} else if (IS_TMP_VAR == IS_VAR || IS_TMP_VAR == IS_CV) {
 						zval_ptr_dtor(&varname);
 					}
+					ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, 0);
 					zval_dtor(free_op1.var);
 					CHECK_EXCEPTION();
 					ZEND_VM_NEXT_OPCODE();
@@ -11517,13 +11546,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_TMP_UNUSED_HANDLER(ZEND_OPCODE_HAN
 		} else {
 			ce = EX_T(opline->op2.var).class_entry;
 		}
-		zend_std_unset_static_property(ce, Z_STRVAL_P(varname), Z_STRLEN_P(varname), ((IS_TMP_VAR == IS_CONST) ? opline->op1.literal : NULL) TSRMLS_CC);
+		result = zend_std_unset_static_property(ce, Z_STRVAL_P(varname), Z_STRLEN_P(varname), ((IS_TMP_VAR == IS_CONST) ? opline->op1.literal : NULL) TSRMLS_CC);
 	} else {
 		ulong hash_value = zend_inline_hash_func(varname->value.str.val, varname->value.str.len+1);
 
 		target_symbol_table = zend_get_target_symbol_table(opline->extended_value & ZEND_FETCH_TYPE_MASK TSRMLS_CC);
-		zend_delete_variable(execute_data, target_symbol_table, varname->value.str.val, varname->value.str.len+1, hash_value TSRMLS_CC);
+		result = zend_delete_variable(execute_data, target_symbol_table, varname->value.str.val, varname->value.str.len+1, hash_value TSRMLS_CC);
 	}
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	if (IS_TMP_VAR != IS_CONST && varname == &tmp) {
 		zval_dtor(&tmp);
@@ -15781,6 +15811,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_VAR_CONST_HANDLER(ZEND_OPCODE_HAND
 	zval tmp, *varname;
 	HashTable *target_symbol_table;
 	zend_free_op free_op1;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	if (IS_VAR == IS_CV &&
@@ -15789,12 +15820,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_VAR_CONST_HANDLER(ZEND_OPCODE_HAND
 		if (EG(active_symbol_table)) {
 			zend_compiled_variable *cv = &CV_DEF_OF(opline->op1.var);
 
-			zend_delete_variable(EX(prev_execute_data), EG(active_symbol_table),  cv->name, cv->name_len+1, cv->hash_value TSRMLS_CC);
+			result = zend_delete_variable(EX(prev_execute_data), EG(active_symbol_table),  cv->name, cv->name_len+1, cv->hash_value TSRMLS_CC);
 			EX_CV(opline->op1.var) = NULL;
 		} else if (EX_CV(opline->op1.var)) {
 			zval_ptr_dtor(EX_CV(opline->op1.var));
+			result = SUCCESS;
 			EX_CV(opline->op1.var) = NULL;
 		}
+		ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 		CHECK_EXCEPTION();
 		ZEND_VM_NEXT_OPCODE();
 	}
@@ -15824,6 +15857,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_VAR_CONST_HANDLER(ZEND_OPCODE_HAND
 					} else if (IS_VAR == IS_VAR || IS_VAR == IS_CV) {
 						zval_ptr_dtor(&varname);
 					}
+					ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, 0);
 					if (free_op1.var) {zval_ptr_dtor(&free_op1.var);};
 					CHECK_EXCEPTION();
 					ZEND_VM_NEXT_OPCODE();
@@ -15833,13 +15867,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_VAR_CONST_HANDLER(ZEND_OPCODE_HAND
 		} else {
 			ce = EX_T(opline->op2.var).class_entry;
 		}
-		zend_std_unset_static_property(ce, Z_STRVAL_P(varname), Z_STRLEN_P(varname), ((IS_VAR == IS_CONST) ? opline->op1.literal : NULL) TSRMLS_CC);
+		result = zend_std_unset_static_property(ce, Z_STRVAL_P(varname), Z_STRLEN_P(varname), ((IS_VAR == IS_CONST) ? opline->op1.literal : NULL) TSRMLS_CC);
 	} else {
 		ulong hash_value = zend_inline_hash_func(varname->value.str.val, varname->value.str.len+1);
 
 		target_symbol_table = zend_get_target_symbol_table(opline->extended_value & ZEND_FETCH_TYPE_MASK TSRMLS_CC);
-		zend_delete_variable(execute_data, target_symbol_table, varname->value.str.val, varname->value.str.len+1, hash_value TSRMLS_CC);
+		result = zend_delete_variable(execute_data, target_symbol_table, varname->value.str.val, varname->value.str.len+1, hash_value TSRMLS_CC);
 	}
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	if (IS_VAR != IS_CONST && varname == &tmp) {
 		zval_dtor(&tmp);
@@ -15858,6 +15893,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_VAR_CONST_HANDLER(ZEND_OPCODE_HAND
 	zval **container;
 	zval *offset;
 	ulong hval;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	container = _get_zval_ptr_ptr_var(opline->op1.var, execute_data, &free_op1 TSRMLS_CC);
@@ -15874,13 +15910,13 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_VAR_CONST_HANDLER(ZEND_OPCODE_HAND
 				switch (Z_TYPE_P(offset)) {
 					case IS_DOUBLE:
 						hval = zend_dval_to_lval(Z_DVAL_P(offset));
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						break;
 					case IS_RESOURCE:
 					case IS_BOOL:
 					case IS_LONG:
 						hval = Z_LVAL_P(offset);
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						break;
 					case IS_STRING:
 						if (IS_CONST == IS_CV || IS_CONST == IS_VAR) {
@@ -15897,22 +15933,22 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_VAR_CONST_HANDLER(ZEND_OPCODE_HAND
 							}
 						}
 						if (ht == &EG(symbol_table)) {
-							zend_delete_global_variable_ex(offset->value.str.val, offset->value.str.len, hval TSRMLS_CC);
+							result = zend_delete_global_variable_ex(offset->value.str.val, offset->value.str.len, hval TSRMLS_CC);
 						} else {
-							zend_hash_quick_del(ht, Z_STRVAL_P(offset), Z_STRLEN_P(offset)+1, hval);
+							result = zend_hash_quick_del(ht, Z_STRVAL_P(offset), Z_STRLEN_P(offset)+1, hval);
 						}
 						if (IS_CONST == IS_CV || IS_CONST == IS_VAR) {
 							zval_ptr_dtor(&offset);
 						}
 						break;
 num_index_dim:
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						if (IS_CONST == IS_CV || IS_CONST == IS_VAR) {
 							zval_ptr_dtor(&offset);
 						}
 						break;
 					case IS_NULL:
-						zend_hash_del(ht, "", sizeof(""));
+						result = zend_hash_del(ht, "", sizeof(""));
 						break;
 					default:
 						zend_error(E_WARNING, "Illegal offset type in unset");
@@ -15928,8 +15964,8 @@ num_index_dim:
 				if (0) {
 					MAKE_REAL_ZVAL_PTR(offset);
 				}
-				Z_OBJ_HT_P(*container)->unset_dimension(*container, offset TSRMLS_CC);
-				if (0) {
+				result = Z_OBJ_HT_P(*container)->unset_dimension(*container, offset TSRMLS_CC);
+				if ((result = 0?SUCCESS:FAILURE) == SUCCESS) {
 					zval_ptr_dtor(&offset);
 				} else {
 
@@ -15939,13 +15975,17 @@ num_index_dim:
 				zend_error_noreturn(E_ERROR, "Cannot unset string offsets");
 				ZEND_VM_CONTINUE(); /* bailed out before */
 			default:
+				result = FAILURE;
 
 				break;
 		}
 	} else {
+		result = FAILURE;
 
 	}
 	if (free_op1.var) {zval_ptr_dtor(&free_op1.var);};
+
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	CHECK_EXCEPTION();
 	ZEND_VM_NEXT_OPCODE();
@@ -15957,6 +15997,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_VAR_CONST_HANDLER(ZEND_OPCODE_HAND
 	zend_free_op free_op1;
 	zval **container;
 	zval *offset;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	container = _get_zval_ptr_ptr_var(opline->op1.var, execute_data, &free_op1 TSRMLS_CC);
@@ -15971,8 +16012,9 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_VAR_CONST_HANDLER(ZEND_OPCODE_HAND
 				MAKE_REAL_ZVAL_PTR(offset);
 			}
 			if (Z_OBJ_HT_P(*container)->unset_property) {
-				Z_OBJ_HT_P(*container)->unset_property(*container, offset, ((IS_CONST == IS_CONST) ? opline->op2.literal : NULL) TSRMLS_CC);
+				result = Z_OBJ_HT_P(*container)->unset_property(*container, offset, ((IS_CONST == IS_CONST) ? opline->op2.literal : NULL) TSRMLS_CC);
 			} else {
+				result = FAILURE;
 				zend_error(E_NOTICE, "Trying to unset property of non-object");
 			}
 			if (0) {
@@ -15981,12 +16023,15 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_VAR_CONST_HANDLER(ZEND_OPCODE_HAND
 
 			}
 		} else {
+			result = FAILURE;
 
 		}
 	} else {
 
 	}
 	if (free_op1.var) {zval_ptr_dtor(&free_op1.var);};
+
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	CHECK_EXCEPTION();
 	ZEND_VM_NEXT_OPCODE();
@@ -18040,6 +18085,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_VAR_TMP_HANDLER(ZEND_OPCODE_HANDLE
 	zval **container;
 	zval *offset;
 	ulong hval;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	container = _get_zval_ptr_ptr_var(opline->op1.var, execute_data, &free_op1 TSRMLS_CC);
@@ -18056,13 +18102,13 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_VAR_TMP_HANDLER(ZEND_OPCODE_HANDLE
 				switch (Z_TYPE_P(offset)) {
 					case IS_DOUBLE:
 						hval = zend_dval_to_lval(Z_DVAL_P(offset));
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						break;
 					case IS_RESOURCE:
 					case IS_BOOL:
 					case IS_LONG:
 						hval = Z_LVAL_P(offset);
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						break;
 					case IS_STRING:
 						if (IS_TMP_VAR == IS_CV || IS_TMP_VAR == IS_VAR) {
@@ -18079,22 +18125,22 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_VAR_TMP_HANDLER(ZEND_OPCODE_HANDLE
 							}
 						}
 						if (ht == &EG(symbol_table)) {
-							zend_delete_global_variable_ex(offset->value.str.val, offset->value.str.len, hval TSRMLS_CC);
+							result = zend_delete_global_variable_ex(offset->value.str.val, offset->value.str.len, hval TSRMLS_CC);
 						} else {
-							zend_hash_quick_del(ht, Z_STRVAL_P(offset), Z_STRLEN_P(offset)+1, hval);
+							result = zend_hash_quick_del(ht, Z_STRVAL_P(offset), Z_STRLEN_P(offset)+1, hval);
 						}
 						if (IS_TMP_VAR == IS_CV || IS_TMP_VAR == IS_VAR) {
 							zval_ptr_dtor(&offset);
 						}
 						break;
 num_index_dim:
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						if (IS_TMP_VAR == IS_CV || IS_TMP_VAR == IS_VAR) {
 							zval_ptr_dtor(&offset);
 						}
 						break;
 					case IS_NULL:
-						zend_hash_del(ht, "", sizeof(""));
+						result = zend_hash_del(ht, "", sizeof(""));
 						break;
 					default:
 						zend_error(E_WARNING, "Illegal offset type in unset");
@@ -18110,8 +18156,8 @@ num_index_dim:
 				if (1) {
 					MAKE_REAL_ZVAL_PTR(offset);
 				}
-				Z_OBJ_HT_P(*container)->unset_dimension(*container, offset TSRMLS_CC);
-				if (1) {
+				result = Z_OBJ_HT_P(*container)->unset_dimension(*container, offset TSRMLS_CC);
+				if ((result = 1?SUCCESS:FAILURE) == SUCCESS) {
 					zval_ptr_dtor(&offset);
 				} else {
 					zval_dtor(free_op2.var);
@@ -18121,13 +18167,17 @@ num_index_dim:
 				zend_error_noreturn(E_ERROR, "Cannot unset string offsets");
 				ZEND_VM_CONTINUE(); /* bailed out before */
 			default:
+				result = FAILURE;
 				zval_dtor(free_op2.var);
 				break;
 		}
 	} else {
+		result = FAILURE;
 		zval_dtor(free_op2.var);
 	}
 	if (free_op1.var) {zval_ptr_dtor(&free_op1.var);};
+
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	CHECK_EXCEPTION();
 	ZEND_VM_NEXT_OPCODE();
@@ -18139,6 +18189,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_VAR_TMP_HANDLER(ZEND_OPCODE_HANDLE
 	zend_free_op free_op1, free_op2;
 	zval **container;
 	zval *offset;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	container = _get_zval_ptr_ptr_var(opline->op1.var, execute_data, &free_op1 TSRMLS_CC);
@@ -18153,8 +18204,9 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_VAR_TMP_HANDLER(ZEND_OPCODE_HANDLE
 				MAKE_REAL_ZVAL_PTR(offset);
 			}
 			if (Z_OBJ_HT_P(*container)->unset_property) {
-				Z_OBJ_HT_P(*container)->unset_property(*container, offset, ((IS_TMP_VAR == IS_CONST) ? opline->op2.literal : NULL) TSRMLS_CC);
+				result = Z_OBJ_HT_P(*container)->unset_property(*container, offset, ((IS_TMP_VAR == IS_CONST) ? opline->op2.literal : NULL) TSRMLS_CC);
 			} else {
+				result = FAILURE;
 				zend_error(E_NOTICE, "Trying to unset property of non-object");
 			}
 			if (1) {
@@ -18163,12 +18215,15 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_VAR_TMP_HANDLER(ZEND_OPCODE_HANDLE
 				zval_dtor(free_op2.var);
 			}
 		} else {
+			result = FAILURE;
 			zval_dtor(free_op2.var);
 		}
 	} else {
 		zval_dtor(free_op2.var);
 	}
 	if (free_op1.var) {zval_ptr_dtor(&free_op1.var);};
+
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	CHECK_EXCEPTION();
 	ZEND_VM_NEXT_OPCODE();
@@ -20355,6 +20410,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_VAR_VAR_HANDLER(ZEND_OPCODE_HANDLE
 	zval tmp, *varname;
 	HashTable *target_symbol_table;
 	zend_free_op free_op1;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	if (IS_VAR == IS_CV &&
@@ -20363,12 +20419,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_VAR_VAR_HANDLER(ZEND_OPCODE_HANDLE
 		if (EG(active_symbol_table)) {
 			zend_compiled_variable *cv = &CV_DEF_OF(opline->op1.var);
 
-			zend_delete_variable(EX(prev_execute_data), EG(active_symbol_table),  cv->name, cv->name_len+1, cv->hash_value TSRMLS_CC);
+			result = zend_delete_variable(EX(prev_execute_data), EG(active_symbol_table),  cv->name, cv->name_len+1, cv->hash_value TSRMLS_CC);
 			EX_CV(opline->op1.var) = NULL;
 		} else if (EX_CV(opline->op1.var)) {
 			zval_ptr_dtor(EX_CV(opline->op1.var));
+			result = SUCCESS;
 			EX_CV(opline->op1.var) = NULL;
 		}
+		ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 		CHECK_EXCEPTION();
 		ZEND_VM_NEXT_OPCODE();
 	}
@@ -20398,6 +20456,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_VAR_VAR_HANDLER(ZEND_OPCODE_HANDLE
 					} else if (IS_VAR == IS_VAR || IS_VAR == IS_CV) {
 						zval_ptr_dtor(&varname);
 					}
+					ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, 0);
 					if (free_op1.var) {zval_ptr_dtor(&free_op1.var);};
 					CHECK_EXCEPTION();
 					ZEND_VM_NEXT_OPCODE();
@@ -20407,13 +20466,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_VAR_VAR_HANDLER(ZEND_OPCODE_HANDLE
 		} else {
 			ce = EX_T(opline->op2.var).class_entry;
 		}
-		zend_std_unset_static_property(ce, Z_STRVAL_P(varname), Z_STRLEN_P(varname), ((IS_VAR == IS_CONST) ? opline->op1.literal : NULL) TSRMLS_CC);
+		result = zend_std_unset_static_property(ce, Z_STRVAL_P(varname), Z_STRLEN_P(varname), ((IS_VAR == IS_CONST) ? opline->op1.literal : NULL) TSRMLS_CC);
 	} else {
 		ulong hash_value = zend_inline_hash_func(varname->value.str.val, varname->value.str.len+1);
 
 		target_symbol_table = zend_get_target_symbol_table(opline->extended_value & ZEND_FETCH_TYPE_MASK TSRMLS_CC);
-		zend_delete_variable(execute_data, target_symbol_table, varname->value.str.val, varname->value.str.len+1, hash_value TSRMLS_CC);
+		result = zend_delete_variable(execute_data, target_symbol_table, varname->value.str.val, varname->value.str.len+1, hash_value TSRMLS_CC);
 	}
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	if (IS_VAR != IS_CONST && varname == &tmp) {
 		zval_dtor(&tmp);
@@ -20432,6 +20492,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_VAR_VAR_HANDLER(ZEND_OPCODE_HANDLE
 	zval **container;
 	zval *offset;
 	ulong hval;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	container = _get_zval_ptr_ptr_var(opline->op1.var, execute_data, &free_op1 TSRMLS_CC);
@@ -20448,13 +20509,13 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_VAR_VAR_HANDLER(ZEND_OPCODE_HANDLE
 				switch (Z_TYPE_P(offset)) {
 					case IS_DOUBLE:
 						hval = zend_dval_to_lval(Z_DVAL_P(offset));
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						break;
 					case IS_RESOURCE:
 					case IS_BOOL:
 					case IS_LONG:
 						hval = Z_LVAL_P(offset);
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						break;
 					case IS_STRING:
 						if (IS_VAR == IS_CV || IS_VAR == IS_VAR) {
@@ -20471,22 +20532,22 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_VAR_VAR_HANDLER(ZEND_OPCODE_HANDLE
 							}
 						}
 						if (ht == &EG(symbol_table)) {
-							zend_delete_global_variable_ex(offset->value.str.val, offset->value.str.len, hval TSRMLS_CC);
+							result = zend_delete_global_variable_ex(offset->value.str.val, offset->value.str.len, hval TSRMLS_CC);
 						} else {
-							zend_hash_quick_del(ht, Z_STRVAL_P(offset), Z_STRLEN_P(offset)+1, hval);
+							result = zend_hash_quick_del(ht, Z_STRVAL_P(offset), Z_STRLEN_P(offset)+1, hval);
 						}
 						if (IS_VAR == IS_CV || IS_VAR == IS_VAR) {
 							zval_ptr_dtor(&offset);
 						}
 						break;
 num_index_dim:
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						if (IS_VAR == IS_CV || IS_VAR == IS_VAR) {
 							zval_ptr_dtor(&offset);
 						}
 						break;
 					case IS_NULL:
-						zend_hash_del(ht, "", sizeof(""));
+						result = zend_hash_del(ht, "", sizeof(""));
 						break;
 					default:
 						zend_error(E_WARNING, "Illegal offset type in unset");
@@ -20502,8 +20563,8 @@ num_index_dim:
 				if (0) {
 					MAKE_REAL_ZVAL_PTR(offset);
 				}
-				Z_OBJ_HT_P(*container)->unset_dimension(*container, offset TSRMLS_CC);
-				if (0) {
+				result = Z_OBJ_HT_P(*container)->unset_dimension(*container, offset TSRMLS_CC);
+				if ((result = 0?SUCCESS:FAILURE) == SUCCESS) {
 					zval_ptr_dtor(&offset);
 				} else {
 					if (free_op2.var) {zval_ptr_dtor(&free_op2.var);};
@@ -20513,13 +20574,17 @@ num_index_dim:
 				zend_error_noreturn(E_ERROR, "Cannot unset string offsets");
 				ZEND_VM_CONTINUE(); /* bailed out before */
 			default:
+				result = FAILURE;
 				if (free_op2.var) {zval_ptr_dtor(&free_op2.var);};
 				break;
 		}
 	} else {
+		result = FAILURE;
 		if (free_op2.var) {zval_ptr_dtor(&free_op2.var);};
 	}
 	if (free_op1.var) {zval_ptr_dtor(&free_op1.var);};
+
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	CHECK_EXCEPTION();
 	ZEND_VM_NEXT_OPCODE();
@@ -20531,6 +20596,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_VAR_VAR_HANDLER(ZEND_OPCODE_HANDLE
 	zend_free_op free_op1, free_op2;
 	zval **container;
 	zval *offset;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	container = _get_zval_ptr_ptr_var(opline->op1.var, execute_data, &free_op1 TSRMLS_CC);
@@ -20545,8 +20611,9 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_VAR_VAR_HANDLER(ZEND_OPCODE_HANDLE
 				MAKE_REAL_ZVAL_PTR(offset);
 			}
 			if (Z_OBJ_HT_P(*container)->unset_property) {
-				Z_OBJ_HT_P(*container)->unset_property(*container, offset, ((IS_VAR == IS_CONST) ? opline->op2.literal : NULL) TSRMLS_CC);
+				result = Z_OBJ_HT_P(*container)->unset_property(*container, offset, ((IS_VAR == IS_CONST) ? opline->op2.literal : NULL) TSRMLS_CC);
 			} else {
+				result = FAILURE;
 				zend_error(E_NOTICE, "Trying to unset property of non-object");
 			}
 			if (0) {
@@ -20555,12 +20622,15 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_VAR_VAR_HANDLER(ZEND_OPCODE_HANDLE
 				if (free_op2.var) {zval_ptr_dtor(&free_op2.var);};
 			}
 		} else {
+			result = FAILURE;
 			if (free_op2.var) {zval_ptr_dtor(&free_op2.var);};
 		}
 	} else {
 		if (free_op2.var) {zval_ptr_dtor(&free_op2.var);};
 	}
 	if (free_op1.var) {zval_ptr_dtor(&free_op1.var);};
+
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	CHECK_EXCEPTION();
 	ZEND_VM_NEXT_OPCODE();
@@ -21774,6 +21844,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_VAR_UNUSED_HANDLER(ZEND_OPCODE_HAN
 	zval tmp, *varname;
 	HashTable *target_symbol_table;
 	zend_free_op free_op1;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	if (IS_VAR == IS_CV &&
@@ -21782,12 +21853,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_VAR_UNUSED_HANDLER(ZEND_OPCODE_HAN
 		if (EG(active_symbol_table)) {
 			zend_compiled_variable *cv = &CV_DEF_OF(opline->op1.var);
 
-			zend_delete_variable(EX(prev_execute_data), EG(active_symbol_table),  cv->name, cv->name_len+1, cv->hash_value TSRMLS_CC);
+			result = zend_delete_variable(EX(prev_execute_data), EG(active_symbol_table),  cv->name, cv->name_len+1, cv->hash_value TSRMLS_CC);
 			EX_CV(opline->op1.var) = NULL;
 		} else if (EX_CV(opline->op1.var)) {
 			zval_ptr_dtor(EX_CV(opline->op1.var));
+			result = SUCCESS;
 			EX_CV(opline->op1.var) = NULL;
 		}
+		ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 		CHECK_EXCEPTION();
 		ZEND_VM_NEXT_OPCODE();
 	}
@@ -21817,6 +21890,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_VAR_UNUSED_HANDLER(ZEND_OPCODE_HAN
 					} else if (IS_VAR == IS_VAR || IS_VAR == IS_CV) {
 						zval_ptr_dtor(&varname);
 					}
+					ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, 0);
 					if (free_op1.var) {zval_ptr_dtor(&free_op1.var);};
 					CHECK_EXCEPTION();
 					ZEND_VM_NEXT_OPCODE();
@@ -21826,13 +21900,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_VAR_UNUSED_HANDLER(ZEND_OPCODE_HAN
 		} else {
 			ce = EX_T(opline->op2.var).class_entry;
 		}
-		zend_std_unset_static_property(ce, Z_STRVAL_P(varname), Z_STRLEN_P(varname), ((IS_VAR == IS_CONST) ? opline->op1.literal : NULL) TSRMLS_CC);
+		result = zend_std_unset_static_property(ce, Z_STRVAL_P(varname), Z_STRLEN_P(varname), ((IS_VAR == IS_CONST) ? opline->op1.literal : NULL) TSRMLS_CC);
 	} else {
 		ulong hash_value = zend_inline_hash_func(varname->value.str.val, varname->value.str.len+1);
 
 		target_symbol_table = zend_get_target_symbol_table(opline->extended_value & ZEND_FETCH_TYPE_MASK TSRMLS_CC);
-		zend_delete_variable(execute_data, target_symbol_table, varname->value.str.val, varname->value.str.len+1, hash_value TSRMLS_CC);
+		result = zend_delete_variable(execute_data, target_symbol_table, varname->value.str.val, varname->value.str.len+1, hash_value TSRMLS_CC);
 	}
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	if (IS_VAR != IS_CONST && varname == &tmp) {
 		zval_dtor(&tmp);
@@ -23808,6 +23883,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_VAR_CV_HANDLER(ZEND_OPCODE_HANDLER
 	zval **container;
 	zval *offset;
 	ulong hval;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	container = _get_zval_ptr_ptr_var(opline->op1.var, execute_data, &free_op1 TSRMLS_CC);
@@ -23824,13 +23900,13 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_VAR_CV_HANDLER(ZEND_OPCODE_HANDLER
 				switch (Z_TYPE_P(offset)) {
 					case IS_DOUBLE:
 						hval = zend_dval_to_lval(Z_DVAL_P(offset));
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						break;
 					case IS_RESOURCE:
 					case IS_BOOL:
 					case IS_LONG:
 						hval = Z_LVAL_P(offset);
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						break;
 					case IS_STRING:
 						if (IS_CV == IS_CV || IS_CV == IS_VAR) {
@@ -23847,22 +23923,22 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_VAR_CV_HANDLER(ZEND_OPCODE_HANDLER
 							}
 						}
 						if (ht == &EG(symbol_table)) {
-							zend_delete_global_variable_ex(offset->value.str.val, offset->value.str.len, hval TSRMLS_CC);
+							result = zend_delete_global_variable_ex(offset->value.str.val, offset->value.str.len, hval TSRMLS_CC);
 						} else {
-							zend_hash_quick_del(ht, Z_STRVAL_P(offset), Z_STRLEN_P(offset)+1, hval);
+							result = zend_hash_quick_del(ht, Z_STRVAL_P(offset), Z_STRLEN_P(offset)+1, hval);
 						}
 						if (IS_CV == IS_CV || IS_CV == IS_VAR) {
 							zval_ptr_dtor(&offset);
 						}
 						break;
 num_index_dim:
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						if (IS_CV == IS_CV || IS_CV == IS_VAR) {
 							zval_ptr_dtor(&offset);
 						}
 						break;
 					case IS_NULL:
-						zend_hash_del(ht, "", sizeof(""));
+						result = zend_hash_del(ht, "", sizeof(""));
 						break;
 					default:
 						zend_error(E_WARNING, "Illegal offset type in unset");
@@ -23878,8 +23954,8 @@ num_index_dim:
 				if (0) {
 					MAKE_REAL_ZVAL_PTR(offset);
 				}
-				Z_OBJ_HT_P(*container)->unset_dimension(*container, offset TSRMLS_CC);
-				if (0) {
+				result = Z_OBJ_HT_P(*container)->unset_dimension(*container, offset TSRMLS_CC);
+				if ((result = 0?SUCCESS:FAILURE) == SUCCESS) {
 					zval_ptr_dtor(&offset);
 				} else {
 
@@ -23889,13 +23965,17 @@ num_index_dim:
 				zend_error_noreturn(E_ERROR, "Cannot unset string offsets");
 				ZEND_VM_CONTINUE(); /* bailed out before */
 			default:
+				result = FAILURE;
 
 				break;
 		}
 	} else {
+		result = FAILURE;
 
 	}
 	if (free_op1.var) {zval_ptr_dtor(&free_op1.var);};
+
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	CHECK_EXCEPTION();
 	ZEND_VM_NEXT_OPCODE();
@@ -23907,6 +23987,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_VAR_CV_HANDLER(ZEND_OPCODE_HANDLER
 	zend_free_op free_op1;
 	zval **container;
 	zval *offset;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	container = _get_zval_ptr_ptr_var(opline->op1.var, execute_data, &free_op1 TSRMLS_CC);
@@ -23921,8 +24002,9 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_VAR_CV_HANDLER(ZEND_OPCODE_HANDLER
 				MAKE_REAL_ZVAL_PTR(offset);
 			}
 			if (Z_OBJ_HT_P(*container)->unset_property) {
-				Z_OBJ_HT_P(*container)->unset_property(*container, offset, ((IS_CV == IS_CONST) ? opline->op2.literal : NULL) TSRMLS_CC);
+				result = Z_OBJ_HT_P(*container)->unset_property(*container, offset, ((IS_CV == IS_CONST) ? opline->op2.literal : NULL) TSRMLS_CC);
 			} else {
+				result = FAILURE;
 				zend_error(E_NOTICE, "Trying to unset property of non-object");
 			}
 			if (0) {
@@ -23931,12 +24013,15 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_VAR_CV_HANDLER(ZEND_OPCODE_HANDLER
 
 			}
 		} else {
+			result = FAILURE;
 
 		}
 	} else {
 
 	}
 	if (free_op1.var) {zval_ptr_dtor(&free_op1.var);};
+
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	CHECK_EXCEPTION();
 	ZEND_VM_NEXT_OPCODE();
@@ -25317,6 +25402,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_UNUSED_CONST_HANDLER(ZEND_OPCODE_H
 	zval **container;
 	zval *offset;
 	ulong hval;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	container = _get_obj_zval_ptr_ptr_unused(TSRMLS_C);
@@ -25333,13 +25419,13 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_UNUSED_CONST_HANDLER(ZEND_OPCODE_H
 				switch (Z_TYPE_P(offset)) {
 					case IS_DOUBLE:
 						hval = zend_dval_to_lval(Z_DVAL_P(offset));
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						break;
 					case IS_RESOURCE:
 					case IS_BOOL:
 					case IS_LONG:
 						hval = Z_LVAL_P(offset);
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						break;
 					case IS_STRING:
 						if (IS_CONST == IS_CV || IS_CONST == IS_VAR) {
@@ -25356,22 +25442,22 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_UNUSED_CONST_HANDLER(ZEND_OPCODE_H
 							}
 						}
 						if (ht == &EG(symbol_table)) {
-							zend_delete_global_variable_ex(offset->value.str.val, offset->value.str.len, hval TSRMLS_CC);
+							result = zend_delete_global_variable_ex(offset->value.str.val, offset->value.str.len, hval TSRMLS_CC);
 						} else {
-							zend_hash_quick_del(ht, Z_STRVAL_P(offset), Z_STRLEN_P(offset)+1, hval);
+							result = zend_hash_quick_del(ht, Z_STRVAL_P(offset), Z_STRLEN_P(offset)+1, hval);
 						}
 						if (IS_CONST == IS_CV || IS_CONST == IS_VAR) {
 							zval_ptr_dtor(&offset);
 						}
 						break;
 num_index_dim:
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						if (IS_CONST == IS_CV || IS_CONST == IS_VAR) {
 							zval_ptr_dtor(&offset);
 						}
 						break;
 					case IS_NULL:
-						zend_hash_del(ht, "", sizeof(""));
+						result = zend_hash_del(ht, "", sizeof(""));
 						break;
 					default:
 						zend_error(E_WARNING, "Illegal offset type in unset");
@@ -25387,8 +25473,8 @@ num_index_dim:
 				if (0) {
 					MAKE_REAL_ZVAL_PTR(offset);
 				}
-				Z_OBJ_HT_P(*container)->unset_dimension(*container, offset TSRMLS_CC);
-				if (0) {
+				result = Z_OBJ_HT_P(*container)->unset_dimension(*container, offset TSRMLS_CC);
+				if ((result = 0?SUCCESS:FAILURE) == SUCCESS) {
 					zval_ptr_dtor(&offset);
 				} else {
 
@@ -25398,12 +25484,16 @@ num_index_dim:
 				zend_error_noreturn(E_ERROR, "Cannot unset string offsets");
 				ZEND_VM_CONTINUE(); /* bailed out before */
 			default:
+				result = FAILURE;
 
 				break;
 		}
 	} else {
+		result = FAILURE;
 
 	}
+
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	CHECK_EXCEPTION();
 	ZEND_VM_NEXT_OPCODE();
@@ -25415,6 +25505,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_UNUSED_CONST_HANDLER(ZEND_OPCODE_H
 
 	zval **container;
 	zval *offset;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	container = _get_obj_zval_ptr_ptr_unused(TSRMLS_C);
@@ -25429,8 +25520,9 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_UNUSED_CONST_HANDLER(ZEND_OPCODE_H
 				MAKE_REAL_ZVAL_PTR(offset);
 			}
 			if (Z_OBJ_HT_P(*container)->unset_property) {
-				Z_OBJ_HT_P(*container)->unset_property(*container, offset, ((IS_CONST == IS_CONST) ? opline->op2.literal : NULL) TSRMLS_CC);
+				result = Z_OBJ_HT_P(*container)->unset_property(*container, offset, ((IS_CONST == IS_CONST) ? opline->op2.literal : NULL) TSRMLS_CC);
 			} else {
+				result = FAILURE;
 				zend_error(E_NOTICE, "Trying to unset property of non-object");
 			}
 			if (0) {
@@ -25439,11 +25531,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_UNUSED_CONST_HANDLER(ZEND_OPCODE_H
 
 			}
 		} else {
+			result = FAILURE;
 
 		}
 	} else {
 
 	}
+
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	CHECK_EXCEPTION();
 	ZEND_VM_NEXT_OPCODE();
@@ -26638,6 +26733,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_UNUSED_TMP_HANDLER(ZEND_OPCODE_HAN
 	zval **container;
 	zval *offset;
 	ulong hval;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	container = _get_obj_zval_ptr_ptr_unused(TSRMLS_C);
@@ -26654,13 +26750,13 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_UNUSED_TMP_HANDLER(ZEND_OPCODE_HAN
 				switch (Z_TYPE_P(offset)) {
 					case IS_DOUBLE:
 						hval = zend_dval_to_lval(Z_DVAL_P(offset));
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						break;
 					case IS_RESOURCE:
 					case IS_BOOL:
 					case IS_LONG:
 						hval = Z_LVAL_P(offset);
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						break;
 					case IS_STRING:
 						if (IS_TMP_VAR == IS_CV || IS_TMP_VAR == IS_VAR) {
@@ -26677,22 +26773,22 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_UNUSED_TMP_HANDLER(ZEND_OPCODE_HAN
 							}
 						}
 						if (ht == &EG(symbol_table)) {
-							zend_delete_global_variable_ex(offset->value.str.val, offset->value.str.len, hval TSRMLS_CC);
+							result = zend_delete_global_variable_ex(offset->value.str.val, offset->value.str.len, hval TSRMLS_CC);
 						} else {
-							zend_hash_quick_del(ht, Z_STRVAL_P(offset), Z_STRLEN_P(offset)+1, hval);
+							result = zend_hash_quick_del(ht, Z_STRVAL_P(offset), Z_STRLEN_P(offset)+1, hval);
 						}
 						if (IS_TMP_VAR == IS_CV || IS_TMP_VAR == IS_VAR) {
 							zval_ptr_dtor(&offset);
 						}
 						break;
 num_index_dim:
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						if (IS_TMP_VAR == IS_CV || IS_TMP_VAR == IS_VAR) {
 							zval_ptr_dtor(&offset);
 						}
 						break;
 					case IS_NULL:
-						zend_hash_del(ht, "", sizeof(""));
+						result = zend_hash_del(ht, "", sizeof(""));
 						break;
 					default:
 						zend_error(E_WARNING, "Illegal offset type in unset");
@@ -26708,8 +26804,8 @@ num_index_dim:
 				if (1) {
 					MAKE_REAL_ZVAL_PTR(offset);
 				}
-				Z_OBJ_HT_P(*container)->unset_dimension(*container, offset TSRMLS_CC);
-				if (1) {
+				result = Z_OBJ_HT_P(*container)->unset_dimension(*container, offset TSRMLS_CC);
+				if ((result = 1?SUCCESS:FAILURE) == SUCCESS) {
 					zval_ptr_dtor(&offset);
 				} else {
 					zval_dtor(free_op2.var);
@@ -26719,12 +26815,16 @@ num_index_dim:
 				zend_error_noreturn(E_ERROR, "Cannot unset string offsets");
 				ZEND_VM_CONTINUE(); /* bailed out before */
 			default:
+				result = FAILURE;
 				zval_dtor(free_op2.var);
 				break;
 		}
 	} else {
+		result = FAILURE;
 		zval_dtor(free_op2.var);
 	}
+
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	CHECK_EXCEPTION();
 	ZEND_VM_NEXT_OPCODE();
@@ -26736,6 +26836,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_UNUSED_TMP_HANDLER(ZEND_OPCODE_HAN
 	zend_free_op free_op2;
 	zval **container;
 	zval *offset;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	container = _get_obj_zval_ptr_ptr_unused(TSRMLS_C);
@@ -26750,8 +26851,9 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_UNUSED_TMP_HANDLER(ZEND_OPCODE_HAN
 				MAKE_REAL_ZVAL_PTR(offset);
 			}
 			if (Z_OBJ_HT_P(*container)->unset_property) {
-				Z_OBJ_HT_P(*container)->unset_property(*container, offset, ((IS_TMP_VAR == IS_CONST) ? opline->op2.literal : NULL) TSRMLS_CC);
+				result = Z_OBJ_HT_P(*container)->unset_property(*container, offset, ((IS_TMP_VAR == IS_CONST) ? opline->op2.literal : NULL) TSRMLS_CC);
 			} else {
+				result = FAILURE;
 				zend_error(E_NOTICE, "Trying to unset property of non-object");
 			}
 			if (1) {
@@ -26760,11 +26862,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_UNUSED_TMP_HANDLER(ZEND_OPCODE_HAN
 				zval_dtor(free_op2.var);
 			}
 		} else {
+			result = FAILURE;
 			zval_dtor(free_op2.var);
 		}
 	} else {
 		zval_dtor(free_op2.var);
 	}
+
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	CHECK_EXCEPTION();
 	ZEND_VM_NEXT_OPCODE();
@@ -27959,6 +28064,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_UNUSED_VAR_HANDLER(ZEND_OPCODE_HAN
 	zval **container;
 	zval *offset;
 	ulong hval;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	container = _get_obj_zval_ptr_ptr_unused(TSRMLS_C);
@@ -27975,13 +28081,13 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_UNUSED_VAR_HANDLER(ZEND_OPCODE_HAN
 				switch (Z_TYPE_P(offset)) {
 					case IS_DOUBLE:
 						hval = zend_dval_to_lval(Z_DVAL_P(offset));
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						break;
 					case IS_RESOURCE:
 					case IS_BOOL:
 					case IS_LONG:
 						hval = Z_LVAL_P(offset);
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						break;
 					case IS_STRING:
 						if (IS_VAR == IS_CV || IS_VAR == IS_VAR) {
@@ -27998,22 +28104,22 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_UNUSED_VAR_HANDLER(ZEND_OPCODE_HAN
 							}
 						}
 						if (ht == &EG(symbol_table)) {
-							zend_delete_global_variable_ex(offset->value.str.val, offset->value.str.len, hval TSRMLS_CC);
+							result = zend_delete_global_variable_ex(offset->value.str.val, offset->value.str.len, hval TSRMLS_CC);
 						} else {
-							zend_hash_quick_del(ht, Z_STRVAL_P(offset), Z_STRLEN_P(offset)+1, hval);
+							result = zend_hash_quick_del(ht, Z_STRVAL_P(offset), Z_STRLEN_P(offset)+1, hval);
 						}
 						if (IS_VAR == IS_CV || IS_VAR == IS_VAR) {
 							zval_ptr_dtor(&offset);
 						}
 						break;
 num_index_dim:
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						if (IS_VAR == IS_CV || IS_VAR == IS_VAR) {
 							zval_ptr_dtor(&offset);
 						}
 						break;
 					case IS_NULL:
-						zend_hash_del(ht, "", sizeof(""));
+						result = zend_hash_del(ht, "", sizeof(""));
 						break;
 					default:
 						zend_error(E_WARNING, "Illegal offset type in unset");
@@ -28029,8 +28135,8 @@ num_index_dim:
 				if (0) {
 					MAKE_REAL_ZVAL_PTR(offset);
 				}
-				Z_OBJ_HT_P(*container)->unset_dimension(*container, offset TSRMLS_CC);
-				if (0) {
+				result = Z_OBJ_HT_P(*container)->unset_dimension(*container, offset TSRMLS_CC);
+				if ((result = 0?SUCCESS:FAILURE) == SUCCESS) {
 					zval_ptr_dtor(&offset);
 				} else {
 					if (free_op2.var) {zval_ptr_dtor(&free_op2.var);};
@@ -28040,12 +28146,16 @@ num_index_dim:
 				zend_error_noreturn(E_ERROR, "Cannot unset string offsets");
 				ZEND_VM_CONTINUE(); /* bailed out before */
 			default:
+				result = FAILURE;
 				if (free_op2.var) {zval_ptr_dtor(&free_op2.var);};
 				break;
 		}
 	} else {
+		result = FAILURE;
 		if (free_op2.var) {zval_ptr_dtor(&free_op2.var);};
 	}
+
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	CHECK_EXCEPTION();
 	ZEND_VM_NEXT_OPCODE();
@@ -28057,6 +28167,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_UNUSED_VAR_HANDLER(ZEND_OPCODE_HAN
 	zend_free_op free_op2;
 	zval **container;
 	zval *offset;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	container = _get_obj_zval_ptr_ptr_unused(TSRMLS_C);
@@ -28071,8 +28182,9 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_UNUSED_VAR_HANDLER(ZEND_OPCODE_HAN
 				MAKE_REAL_ZVAL_PTR(offset);
 			}
 			if (Z_OBJ_HT_P(*container)->unset_property) {
-				Z_OBJ_HT_P(*container)->unset_property(*container, offset, ((IS_VAR == IS_CONST) ? opline->op2.literal : NULL) TSRMLS_CC);
+				result = Z_OBJ_HT_P(*container)->unset_property(*container, offset, ((IS_VAR == IS_CONST) ? opline->op2.literal : NULL) TSRMLS_CC);
 			} else {
+				result = FAILURE;
 				zend_error(E_NOTICE, "Trying to unset property of non-object");
 			}
 			if (0) {
@@ -28081,11 +28193,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_UNUSED_VAR_HANDLER(ZEND_OPCODE_HAN
 				if (free_op2.var) {zval_ptr_dtor(&free_op2.var);};
 			}
 		} else {
+			result = FAILURE;
 			if (free_op2.var) {zval_ptr_dtor(&free_op2.var);};
 		}
 	} else {
 		if (free_op2.var) {zval_ptr_dtor(&free_op2.var);};
 	}
+
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	CHECK_EXCEPTION();
 	ZEND_VM_NEXT_OPCODE();
@@ -29700,6 +29815,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_UNUSED_CV_HANDLER(ZEND_OPCODE_HAND
 	zval **container;
 	zval *offset;
 	ulong hval;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	container = _get_obj_zval_ptr_ptr_unused(TSRMLS_C);
@@ -29716,13 +29832,13 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_UNUSED_CV_HANDLER(ZEND_OPCODE_HAND
 				switch (Z_TYPE_P(offset)) {
 					case IS_DOUBLE:
 						hval = zend_dval_to_lval(Z_DVAL_P(offset));
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						break;
 					case IS_RESOURCE:
 					case IS_BOOL:
 					case IS_LONG:
 						hval = Z_LVAL_P(offset);
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						break;
 					case IS_STRING:
 						if (IS_CV == IS_CV || IS_CV == IS_VAR) {
@@ -29739,22 +29855,22 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_UNUSED_CV_HANDLER(ZEND_OPCODE_HAND
 							}
 						}
 						if (ht == &EG(symbol_table)) {
-							zend_delete_global_variable_ex(offset->value.str.val, offset->value.str.len, hval TSRMLS_CC);
+							result = zend_delete_global_variable_ex(offset->value.str.val, offset->value.str.len, hval TSRMLS_CC);
 						} else {
-							zend_hash_quick_del(ht, Z_STRVAL_P(offset), Z_STRLEN_P(offset)+1, hval);
+							result = zend_hash_quick_del(ht, Z_STRVAL_P(offset), Z_STRLEN_P(offset)+1, hval);
 						}
 						if (IS_CV == IS_CV || IS_CV == IS_VAR) {
 							zval_ptr_dtor(&offset);
 						}
 						break;
 num_index_dim:
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						if (IS_CV == IS_CV || IS_CV == IS_VAR) {
 							zval_ptr_dtor(&offset);
 						}
 						break;
 					case IS_NULL:
-						zend_hash_del(ht, "", sizeof(""));
+						result = zend_hash_del(ht, "", sizeof(""));
 						break;
 					default:
 						zend_error(E_WARNING, "Illegal offset type in unset");
@@ -29770,8 +29886,8 @@ num_index_dim:
 				if (0) {
 					MAKE_REAL_ZVAL_PTR(offset);
 				}
-				Z_OBJ_HT_P(*container)->unset_dimension(*container, offset TSRMLS_CC);
-				if (0) {
+				result = Z_OBJ_HT_P(*container)->unset_dimension(*container, offset TSRMLS_CC);
+				if ((result = 0?SUCCESS:FAILURE) == SUCCESS) {
 					zval_ptr_dtor(&offset);
 				} else {
 
@@ -29781,12 +29897,16 @@ num_index_dim:
 				zend_error_noreturn(E_ERROR, "Cannot unset string offsets");
 				ZEND_VM_CONTINUE(); /* bailed out before */
 			default:
+				result = FAILURE;
 
 				break;
 		}
 	} else {
+		result = FAILURE;
 
 	}
+
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	CHECK_EXCEPTION();
 	ZEND_VM_NEXT_OPCODE();
@@ -29798,6 +29918,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_UNUSED_CV_HANDLER(ZEND_OPCODE_HAND
 
 	zval **container;
 	zval *offset;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	container = _get_obj_zval_ptr_ptr_unused(TSRMLS_C);
@@ -29812,8 +29933,9 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_UNUSED_CV_HANDLER(ZEND_OPCODE_HAND
 				MAKE_REAL_ZVAL_PTR(offset);
 			}
 			if (Z_OBJ_HT_P(*container)->unset_property) {
-				Z_OBJ_HT_P(*container)->unset_property(*container, offset, ((IS_CV == IS_CONST) ? opline->op2.literal : NULL) TSRMLS_CC);
+				result = Z_OBJ_HT_P(*container)->unset_property(*container, offset, ((IS_CV == IS_CONST) ? opline->op2.literal : NULL) TSRMLS_CC);
 			} else {
+				result = FAILURE;
 				zend_error(E_NOTICE, "Trying to unset property of non-object");
 			}
 			if (0) {
@@ -29822,11 +29944,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_UNUSED_CV_HANDLER(ZEND_OPCODE_HAND
 
 			}
 		} else {
+			result = FAILURE;
 
 		}
 	} else {
 
 	}
+
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	CHECK_EXCEPTION();
 	ZEND_VM_NEXT_OPCODE();
@@ -33044,6 +33169,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_CV_CONST_HANDLER(ZEND_OPCODE_HANDL
 	zval tmp, *varname;
 	HashTable *target_symbol_table;
 
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	if (IS_CV == IS_CV &&
@@ -33052,12 +33178,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_CV_CONST_HANDLER(ZEND_OPCODE_HANDL
 		if (EG(active_symbol_table)) {
 			zend_compiled_variable *cv = &CV_DEF_OF(opline->op1.var);
 
-			zend_delete_variable(EX(prev_execute_data), EG(active_symbol_table),  cv->name, cv->name_len+1, cv->hash_value TSRMLS_CC);
+			result = zend_delete_variable(EX(prev_execute_data), EG(active_symbol_table),  cv->name, cv->name_len+1, cv->hash_value TSRMLS_CC);
 			EX_CV(opline->op1.var) = NULL;
 		} else if (EX_CV(opline->op1.var)) {
 			zval_ptr_dtor(EX_CV(opline->op1.var));
+			result = SUCCESS;
 			EX_CV(opline->op1.var) = NULL;
 		}
+		ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 		CHECK_EXCEPTION();
 		ZEND_VM_NEXT_OPCODE();
 	}
@@ -33087,6 +33215,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_CV_CONST_HANDLER(ZEND_OPCODE_HANDL
 					} else if (IS_CV == IS_VAR || IS_CV == IS_CV) {
 						zval_ptr_dtor(&varname);
 					}
+					ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, 0);
 
 					CHECK_EXCEPTION();
 					ZEND_VM_NEXT_OPCODE();
@@ -33096,13 +33225,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_CV_CONST_HANDLER(ZEND_OPCODE_HANDL
 		} else {
 			ce = EX_T(opline->op2.var).class_entry;
 		}
-		zend_std_unset_static_property(ce, Z_STRVAL_P(varname), Z_STRLEN_P(varname), ((IS_CV == IS_CONST) ? opline->op1.literal : NULL) TSRMLS_CC);
+		result = zend_std_unset_static_property(ce, Z_STRVAL_P(varname), Z_STRLEN_P(varname), ((IS_CV == IS_CONST) ? opline->op1.literal : NULL) TSRMLS_CC);
 	} else {
 		ulong hash_value = zend_inline_hash_func(varname->value.str.val, varname->value.str.len+1);
 
 		target_symbol_table = zend_get_target_symbol_table(opline->extended_value & ZEND_FETCH_TYPE_MASK TSRMLS_CC);
-		zend_delete_variable(execute_data, target_symbol_table, varname->value.str.val, varname->value.str.len+1, hash_value TSRMLS_CC);
+		result = zend_delete_variable(execute_data, target_symbol_table, varname->value.str.val, varname->value.str.len+1, hash_value TSRMLS_CC);
 	}
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	if (IS_CV != IS_CONST && varname == &tmp) {
 		zval_dtor(&tmp);
@@ -33121,6 +33251,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_CV_CONST_HANDLER(ZEND_OPCODE_HANDL
 	zval **container;
 	zval *offset;
 	ulong hval;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	container = _get_zval_ptr_ptr_cv_BP_VAR_UNSET(execute_data, opline->op1.var TSRMLS_CC);
@@ -33137,13 +33268,13 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_CV_CONST_HANDLER(ZEND_OPCODE_HANDL
 				switch (Z_TYPE_P(offset)) {
 					case IS_DOUBLE:
 						hval = zend_dval_to_lval(Z_DVAL_P(offset));
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						break;
 					case IS_RESOURCE:
 					case IS_BOOL:
 					case IS_LONG:
 						hval = Z_LVAL_P(offset);
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						break;
 					case IS_STRING:
 						if (IS_CONST == IS_CV || IS_CONST == IS_VAR) {
@@ -33160,22 +33291,22 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_CV_CONST_HANDLER(ZEND_OPCODE_HANDL
 							}
 						}
 						if (ht == &EG(symbol_table)) {
-							zend_delete_global_variable_ex(offset->value.str.val, offset->value.str.len, hval TSRMLS_CC);
+							result = zend_delete_global_variable_ex(offset->value.str.val, offset->value.str.len, hval TSRMLS_CC);
 						} else {
-							zend_hash_quick_del(ht, Z_STRVAL_P(offset), Z_STRLEN_P(offset)+1, hval);
+							result = zend_hash_quick_del(ht, Z_STRVAL_P(offset), Z_STRLEN_P(offset)+1, hval);
 						}
 						if (IS_CONST == IS_CV || IS_CONST == IS_VAR) {
 							zval_ptr_dtor(&offset);
 						}
 						break;
 num_index_dim:
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						if (IS_CONST == IS_CV || IS_CONST == IS_VAR) {
 							zval_ptr_dtor(&offset);
 						}
 						break;
 					case IS_NULL:
-						zend_hash_del(ht, "", sizeof(""));
+						result = zend_hash_del(ht, "", sizeof(""));
 						break;
 					default:
 						zend_error(E_WARNING, "Illegal offset type in unset");
@@ -33191,8 +33322,8 @@ num_index_dim:
 				if (0) {
 					MAKE_REAL_ZVAL_PTR(offset);
 				}
-				Z_OBJ_HT_P(*container)->unset_dimension(*container, offset TSRMLS_CC);
-				if (0) {
+				result = Z_OBJ_HT_P(*container)->unset_dimension(*container, offset TSRMLS_CC);
+				if ((result = 0?SUCCESS:FAILURE) == SUCCESS) {
 					zval_ptr_dtor(&offset);
 				} else {
 
@@ -33202,12 +33333,16 @@ num_index_dim:
 				zend_error_noreturn(E_ERROR, "Cannot unset string offsets");
 				ZEND_VM_CONTINUE(); /* bailed out before */
 			default:
+				result = FAILURE;
 
 				break;
 		}
 	} else {
+		result = FAILURE;
 
 	}
+
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	CHECK_EXCEPTION();
 	ZEND_VM_NEXT_OPCODE();
@@ -33219,6 +33354,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_CV_CONST_HANDLER(ZEND_OPCODE_HANDL
 
 	zval **container;
 	zval *offset;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	container = _get_zval_ptr_ptr_cv_BP_VAR_UNSET(execute_data, opline->op1.var TSRMLS_CC);
@@ -33233,8 +33369,9 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_CV_CONST_HANDLER(ZEND_OPCODE_HANDL
 				MAKE_REAL_ZVAL_PTR(offset);
 			}
 			if (Z_OBJ_HT_P(*container)->unset_property) {
-				Z_OBJ_HT_P(*container)->unset_property(*container, offset, ((IS_CONST == IS_CONST) ? opline->op2.literal : NULL) TSRMLS_CC);
+				result = Z_OBJ_HT_P(*container)->unset_property(*container, offset, ((IS_CONST == IS_CONST) ? opline->op2.literal : NULL) TSRMLS_CC);
 			} else {
+				result = FAILURE;
 				zend_error(E_NOTICE, "Trying to unset property of non-object");
 			}
 			if (0) {
@@ -33243,11 +33380,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_CV_CONST_HANDLER(ZEND_OPCODE_HANDL
 
 			}
 		} else {
+			result = FAILURE;
 
 		}
 	} else {
 
 	}
+
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	CHECK_EXCEPTION();
 	ZEND_VM_NEXT_OPCODE();
@@ -35167,6 +35307,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_CV_TMP_HANDLER(ZEND_OPCODE_HANDLER
 	zval **container;
 	zval *offset;
 	ulong hval;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	container = _get_zval_ptr_ptr_cv_BP_VAR_UNSET(execute_data, opline->op1.var TSRMLS_CC);
@@ -35183,13 +35324,13 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_CV_TMP_HANDLER(ZEND_OPCODE_HANDLER
 				switch (Z_TYPE_P(offset)) {
 					case IS_DOUBLE:
 						hval = zend_dval_to_lval(Z_DVAL_P(offset));
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						break;
 					case IS_RESOURCE:
 					case IS_BOOL:
 					case IS_LONG:
 						hval = Z_LVAL_P(offset);
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						break;
 					case IS_STRING:
 						if (IS_TMP_VAR == IS_CV || IS_TMP_VAR == IS_VAR) {
@@ -35206,22 +35347,22 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_CV_TMP_HANDLER(ZEND_OPCODE_HANDLER
 							}
 						}
 						if (ht == &EG(symbol_table)) {
-							zend_delete_global_variable_ex(offset->value.str.val, offset->value.str.len, hval TSRMLS_CC);
+							result = zend_delete_global_variable_ex(offset->value.str.val, offset->value.str.len, hval TSRMLS_CC);
 						} else {
-							zend_hash_quick_del(ht, Z_STRVAL_P(offset), Z_STRLEN_P(offset)+1, hval);
+							result = zend_hash_quick_del(ht, Z_STRVAL_P(offset), Z_STRLEN_P(offset)+1, hval);
 						}
 						if (IS_TMP_VAR == IS_CV || IS_TMP_VAR == IS_VAR) {
 							zval_ptr_dtor(&offset);
 						}
 						break;
 num_index_dim:
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						if (IS_TMP_VAR == IS_CV || IS_TMP_VAR == IS_VAR) {
 							zval_ptr_dtor(&offset);
 						}
 						break;
 					case IS_NULL:
-						zend_hash_del(ht, "", sizeof(""));
+						result = zend_hash_del(ht, "", sizeof(""));
 						break;
 					default:
 						zend_error(E_WARNING, "Illegal offset type in unset");
@@ -35237,8 +35378,8 @@ num_index_dim:
 				if (1) {
 					MAKE_REAL_ZVAL_PTR(offset);
 				}
-				Z_OBJ_HT_P(*container)->unset_dimension(*container, offset TSRMLS_CC);
-				if (1) {
+				result = Z_OBJ_HT_P(*container)->unset_dimension(*container, offset TSRMLS_CC);
+				if ((result = 1?SUCCESS:FAILURE) == SUCCESS) {
 					zval_ptr_dtor(&offset);
 				} else {
 					zval_dtor(free_op2.var);
@@ -35248,12 +35389,16 @@ num_index_dim:
 				zend_error_noreturn(E_ERROR, "Cannot unset string offsets");
 				ZEND_VM_CONTINUE(); /* bailed out before */
 			default:
+				result = FAILURE;
 				zval_dtor(free_op2.var);
 				break;
 		}
 	} else {
+		result = FAILURE;
 		zval_dtor(free_op2.var);
 	}
+
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	CHECK_EXCEPTION();
 	ZEND_VM_NEXT_OPCODE();
@@ -35265,6 +35410,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_CV_TMP_HANDLER(ZEND_OPCODE_HANDLER
 	zend_free_op free_op2;
 	zval **container;
 	zval *offset;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	container = _get_zval_ptr_ptr_cv_BP_VAR_UNSET(execute_data, opline->op1.var TSRMLS_CC);
@@ -35279,8 +35425,9 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_CV_TMP_HANDLER(ZEND_OPCODE_HANDLER
 				MAKE_REAL_ZVAL_PTR(offset);
 			}
 			if (Z_OBJ_HT_P(*container)->unset_property) {
-				Z_OBJ_HT_P(*container)->unset_property(*container, offset, ((IS_TMP_VAR == IS_CONST) ? opline->op2.literal : NULL) TSRMLS_CC);
+				result = Z_OBJ_HT_P(*container)->unset_property(*container, offset, ((IS_TMP_VAR == IS_CONST) ? opline->op2.literal : NULL) TSRMLS_CC);
 			} else {
+				result = FAILURE;
 				zend_error(E_NOTICE, "Trying to unset property of non-object");
 			}
 			if (1) {
@@ -35289,11 +35436,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_CV_TMP_HANDLER(ZEND_OPCODE_HANDLER
 				zval_dtor(free_op2.var);
 			}
 		} else {
+			result = FAILURE;
 			zval_dtor(free_op2.var);
 		}
 	} else {
 		zval_dtor(free_op2.var);
 	}
+
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	CHECK_EXCEPTION();
 	ZEND_VM_NEXT_OPCODE();
@@ -37345,6 +37495,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_CV_VAR_HANDLER(ZEND_OPCODE_HANDLER
 	zval tmp, *varname;
 	HashTable *target_symbol_table;
 
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	if (IS_CV == IS_CV &&
@@ -37353,12 +37504,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_CV_VAR_HANDLER(ZEND_OPCODE_HANDLER
 		if (EG(active_symbol_table)) {
 			zend_compiled_variable *cv = &CV_DEF_OF(opline->op1.var);
 
-			zend_delete_variable(EX(prev_execute_data), EG(active_symbol_table),  cv->name, cv->name_len+1, cv->hash_value TSRMLS_CC);
+			result = zend_delete_variable(EX(prev_execute_data), EG(active_symbol_table),  cv->name, cv->name_len+1, cv->hash_value TSRMLS_CC);
 			EX_CV(opline->op1.var) = NULL;
 		} else if (EX_CV(opline->op1.var)) {
 			zval_ptr_dtor(EX_CV(opline->op1.var));
+			result = SUCCESS;
 			EX_CV(opline->op1.var) = NULL;
 		}
+		ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 		CHECK_EXCEPTION();
 		ZEND_VM_NEXT_OPCODE();
 	}
@@ -37388,6 +37541,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_CV_VAR_HANDLER(ZEND_OPCODE_HANDLER
 					} else if (IS_CV == IS_VAR || IS_CV == IS_CV) {
 						zval_ptr_dtor(&varname);
 					}
+					ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, 0);
 
 					CHECK_EXCEPTION();
 					ZEND_VM_NEXT_OPCODE();
@@ -37397,13 +37551,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_CV_VAR_HANDLER(ZEND_OPCODE_HANDLER
 		} else {
 			ce = EX_T(opline->op2.var).class_entry;
 		}
-		zend_std_unset_static_property(ce, Z_STRVAL_P(varname), Z_STRLEN_P(varname), ((IS_CV == IS_CONST) ? opline->op1.literal : NULL) TSRMLS_CC);
+		result = zend_std_unset_static_property(ce, Z_STRVAL_P(varname), Z_STRLEN_P(varname), ((IS_CV == IS_CONST) ? opline->op1.literal : NULL) TSRMLS_CC);
 	} else {
 		ulong hash_value = zend_inline_hash_func(varname->value.str.val, varname->value.str.len+1);
 
 		target_symbol_table = zend_get_target_symbol_table(opline->extended_value & ZEND_FETCH_TYPE_MASK TSRMLS_CC);
-		zend_delete_variable(execute_data, target_symbol_table, varname->value.str.val, varname->value.str.len+1, hash_value TSRMLS_CC);
+		result = zend_delete_variable(execute_data, target_symbol_table, varname->value.str.val, varname->value.str.len+1, hash_value TSRMLS_CC);
 	}
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	if (IS_CV != IS_CONST && varname == &tmp) {
 		zval_dtor(&tmp);
@@ -37422,6 +37577,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_CV_VAR_HANDLER(ZEND_OPCODE_HANDLER
 	zval **container;
 	zval *offset;
 	ulong hval;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	container = _get_zval_ptr_ptr_cv_BP_VAR_UNSET(execute_data, opline->op1.var TSRMLS_CC);
@@ -37438,13 +37594,13 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_CV_VAR_HANDLER(ZEND_OPCODE_HANDLER
 				switch (Z_TYPE_P(offset)) {
 					case IS_DOUBLE:
 						hval = zend_dval_to_lval(Z_DVAL_P(offset));
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						break;
 					case IS_RESOURCE:
 					case IS_BOOL:
 					case IS_LONG:
 						hval = Z_LVAL_P(offset);
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						break;
 					case IS_STRING:
 						if (IS_VAR == IS_CV || IS_VAR == IS_VAR) {
@@ -37461,22 +37617,22 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_CV_VAR_HANDLER(ZEND_OPCODE_HANDLER
 							}
 						}
 						if (ht == &EG(symbol_table)) {
-							zend_delete_global_variable_ex(offset->value.str.val, offset->value.str.len, hval TSRMLS_CC);
+							result = zend_delete_global_variable_ex(offset->value.str.val, offset->value.str.len, hval TSRMLS_CC);
 						} else {
-							zend_hash_quick_del(ht, Z_STRVAL_P(offset), Z_STRLEN_P(offset)+1, hval);
+							result = zend_hash_quick_del(ht, Z_STRVAL_P(offset), Z_STRLEN_P(offset)+1, hval);
 						}
 						if (IS_VAR == IS_CV || IS_VAR == IS_VAR) {
 							zval_ptr_dtor(&offset);
 						}
 						break;
 num_index_dim:
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						if (IS_VAR == IS_CV || IS_VAR == IS_VAR) {
 							zval_ptr_dtor(&offset);
 						}
 						break;
 					case IS_NULL:
-						zend_hash_del(ht, "", sizeof(""));
+						result = zend_hash_del(ht, "", sizeof(""));
 						break;
 					default:
 						zend_error(E_WARNING, "Illegal offset type in unset");
@@ -37492,8 +37648,8 @@ num_index_dim:
 				if (0) {
 					MAKE_REAL_ZVAL_PTR(offset);
 				}
-				Z_OBJ_HT_P(*container)->unset_dimension(*container, offset TSRMLS_CC);
-				if (0) {
+				result = Z_OBJ_HT_P(*container)->unset_dimension(*container, offset TSRMLS_CC);
+				if ((result = 0?SUCCESS:FAILURE) == SUCCESS) {
 					zval_ptr_dtor(&offset);
 				} else {
 					if (free_op2.var) {zval_ptr_dtor(&free_op2.var);};
@@ -37503,12 +37659,16 @@ num_index_dim:
 				zend_error_noreturn(E_ERROR, "Cannot unset string offsets");
 				ZEND_VM_CONTINUE(); /* bailed out before */
 			default:
+				result = FAILURE;
 				if (free_op2.var) {zval_ptr_dtor(&free_op2.var);};
 				break;
 		}
 	} else {
+		result = FAILURE;
 		if (free_op2.var) {zval_ptr_dtor(&free_op2.var);};
 	}
+
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	CHECK_EXCEPTION();
 	ZEND_VM_NEXT_OPCODE();
@@ -37520,6 +37680,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_CV_VAR_HANDLER(ZEND_OPCODE_HANDLER
 	zend_free_op free_op2;
 	zval **container;
 	zval *offset;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	container = _get_zval_ptr_ptr_cv_BP_VAR_UNSET(execute_data, opline->op1.var TSRMLS_CC);
@@ -37534,8 +37695,9 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_CV_VAR_HANDLER(ZEND_OPCODE_HANDLER
 				MAKE_REAL_ZVAL_PTR(offset);
 			}
 			if (Z_OBJ_HT_P(*container)->unset_property) {
-				Z_OBJ_HT_P(*container)->unset_property(*container, offset, ((IS_VAR == IS_CONST) ? opline->op2.literal : NULL) TSRMLS_CC);
+				result = Z_OBJ_HT_P(*container)->unset_property(*container, offset, ((IS_VAR == IS_CONST) ? opline->op2.literal : NULL) TSRMLS_CC);
 			} else {
+				result = FAILURE;
 				zend_error(E_NOTICE, "Trying to unset property of non-object");
 			}
 			if (0) {
@@ -37544,11 +37706,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_CV_VAR_HANDLER(ZEND_OPCODE_HANDLER
 				if (free_op2.var) {zval_ptr_dtor(&free_op2.var);};
 			}
 		} else {
+			result = FAILURE;
 			if (free_op2.var) {zval_ptr_dtor(&free_op2.var);};
 		}
 	} else {
 		if (free_op2.var) {zval_ptr_dtor(&free_op2.var);};
 	}
+
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	CHECK_EXCEPTION();
 	ZEND_VM_NEXT_OPCODE();
@@ -38635,6 +38800,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_CV_UNUSED_HANDLER(ZEND_OPCODE_HAND
 	zval tmp, *varname;
 	HashTable *target_symbol_table;
 
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	if (IS_CV == IS_CV &&
@@ -38643,12 +38809,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_CV_UNUSED_HANDLER(ZEND_OPCODE_HAND
 		if (EG(active_symbol_table)) {
 			zend_compiled_variable *cv = &CV_DEF_OF(opline->op1.var);
 
-			zend_delete_variable(EX(prev_execute_data), EG(active_symbol_table),  cv->name, cv->name_len+1, cv->hash_value TSRMLS_CC);
+			result = zend_delete_variable(EX(prev_execute_data), EG(active_symbol_table),  cv->name, cv->name_len+1, cv->hash_value TSRMLS_CC);
 			EX_CV(opline->op1.var) = NULL;
 		} else if (EX_CV(opline->op1.var)) {
 			zval_ptr_dtor(EX_CV(opline->op1.var));
+			result = SUCCESS;
 			EX_CV(opline->op1.var) = NULL;
 		}
+		ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 		CHECK_EXCEPTION();
 		ZEND_VM_NEXT_OPCODE();
 	}
@@ -38678,6 +38846,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_CV_UNUSED_HANDLER(ZEND_OPCODE_HAND
 					} else if (IS_CV == IS_VAR || IS_CV == IS_CV) {
 						zval_ptr_dtor(&varname);
 					}
+					ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, 0);
 
 					CHECK_EXCEPTION();
 					ZEND_VM_NEXT_OPCODE();
@@ -38687,13 +38856,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_VAR_SPEC_CV_UNUSED_HANDLER(ZEND_OPCODE_HAND
 		} else {
 			ce = EX_T(opline->op2.var).class_entry;
 		}
-		zend_std_unset_static_property(ce, Z_STRVAL_P(varname), Z_STRLEN_P(varname), ((IS_CV == IS_CONST) ? opline->op1.literal : NULL) TSRMLS_CC);
+		result = zend_std_unset_static_property(ce, Z_STRVAL_P(varname), Z_STRLEN_P(varname), ((IS_CV == IS_CONST) ? opline->op1.literal : NULL) TSRMLS_CC);
 	} else {
 		ulong hash_value = zend_inline_hash_func(varname->value.str.val, varname->value.str.len+1);
 
 		target_symbol_table = zend_get_target_symbol_table(opline->extended_value & ZEND_FETCH_TYPE_MASK TSRMLS_CC);
-		zend_delete_variable(execute_data, target_symbol_table, varname->value.str.val, varname->value.str.len+1, hash_value TSRMLS_CC);
+		result = zend_delete_variable(execute_data, target_symbol_table, varname->value.str.val, varname->value.str.len+1, hash_value TSRMLS_CC);
 	}
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	if (IS_CV != IS_CONST && varname == &tmp) {
 		zval_dtor(&tmp);
@@ -40515,6 +40685,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_CV_CV_HANDLER(ZEND_OPCODE_HANDLER_
 	zval **container;
 	zval *offset;
 	ulong hval;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	container = _get_zval_ptr_ptr_cv_BP_VAR_UNSET(execute_data, opline->op1.var TSRMLS_CC);
@@ -40531,13 +40702,13 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_CV_CV_HANDLER(ZEND_OPCODE_HANDLER_
 				switch (Z_TYPE_P(offset)) {
 					case IS_DOUBLE:
 						hval = zend_dval_to_lval(Z_DVAL_P(offset));
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						break;
 					case IS_RESOURCE:
 					case IS_BOOL:
 					case IS_LONG:
 						hval = Z_LVAL_P(offset);
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						break;
 					case IS_STRING:
 						if (IS_CV == IS_CV || IS_CV == IS_VAR) {
@@ -40554,22 +40725,22 @@ static int ZEND_FASTCALL  ZEND_UNSET_DIM_SPEC_CV_CV_HANDLER(ZEND_OPCODE_HANDLER_
 							}
 						}
 						if (ht == &EG(symbol_table)) {
-							zend_delete_global_variable_ex(offset->value.str.val, offset->value.str.len, hval TSRMLS_CC);
+							result = zend_delete_global_variable_ex(offset->value.str.val, offset->value.str.len, hval TSRMLS_CC);
 						} else {
-							zend_hash_quick_del(ht, Z_STRVAL_P(offset), Z_STRLEN_P(offset)+1, hval);
+							result = zend_hash_quick_del(ht, Z_STRVAL_P(offset), Z_STRLEN_P(offset)+1, hval);
 						}
 						if (IS_CV == IS_CV || IS_CV == IS_VAR) {
 							zval_ptr_dtor(&offset);
 						}
 						break;
 num_index_dim:
-						zend_hash_index_del(ht, hval);
+						result = zend_hash_index_del(ht, hval);
 						if (IS_CV == IS_CV || IS_CV == IS_VAR) {
 							zval_ptr_dtor(&offset);
 						}
 						break;
 					case IS_NULL:
-						zend_hash_del(ht, "", sizeof(""));
+						result = zend_hash_del(ht, "", sizeof(""));
 						break;
 					default:
 						zend_error(E_WARNING, "Illegal offset type in unset");
@@ -40585,8 +40756,8 @@ num_index_dim:
 				if (0) {
 					MAKE_REAL_ZVAL_PTR(offset);
 				}
-				Z_OBJ_HT_P(*container)->unset_dimension(*container, offset TSRMLS_CC);
-				if (0) {
+				result = Z_OBJ_HT_P(*container)->unset_dimension(*container, offset TSRMLS_CC);
+				if ((result = 0?SUCCESS:FAILURE) == SUCCESS) {
 					zval_ptr_dtor(&offset);
 				} else {
 
@@ -40596,12 +40767,16 @@ num_index_dim:
 				zend_error_noreturn(E_ERROR, "Cannot unset string offsets");
 				ZEND_VM_CONTINUE(); /* bailed out before */
 			default:
+				result = FAILURE;
 
 				break;
 		}
 	} else {
+		result = FAILURE;
 
 	}
+
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	CHECK_EXCEPTION();
 	ZEND_VM_NEXT_OPCODE();
@@ -40613,6 +40788,7 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_CV_CV_HANDLER(ZEND_OPCODE_HANDLER_
 
 	zval **container;
 	zval *offset;
+	int result = FAILURE;
 
 	SAVE_OPLINE();
 	container = _get_zval_ptr_ptr_cv_BP_VAR_UNSET(execute_data, opline->op1.var TSRMLS_CC);
@@ -40627,8 +40803,9 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_CV_CV_HANDLER(ZEND_OPCODE_HANDLER_
 				MAKE_REAL_ZVAL_PTR(offset);
 			}
 			if (Z_OBJ_HT_P(*container)->unset_property) {
-				Z_OBJ_HT_P(*container)->unset_property(*container, offset, ((IS_CV == IS_CONST) ? opline->op2.literal : NULL) TSRMLS_CC);
+				result = Z_OBJ_HT_P(*container)->unset_property(*container, offset, ((IS_CV == IS_CONST) ? opline->op2.literal : NULL) TSRMLS_CC);
 			} else {
+				result = FAILURE;
 				zend_error(E_NOTICE, "Trying to unset property of non-object");
 			}
 			if (0) {
@@ -40637,11 +40814,14 @@ static int ZEND_FASTCALL  ZEND_UNSET_OBJ_SPEC_CV_CV_HANDLER(ZEND_OPCODE_HANDLER_
 
 			}
 		} else {
+			result = FAILURE;
 
 		}
 	} else {
 
 	}
+
+	ZVAL_BOOL(&EX_T(opline->result.var).tmp_var, result==SUCCESS?1:0);
 
 	CHECK_EXCEPTION();
 	ZEND_VM_NEXT_OPCODE();

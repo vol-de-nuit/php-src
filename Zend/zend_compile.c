@@ -6100,37 +6100,39 @@ void zend_do_indirect_references(znode *result, const znode *num_references, zno
 }
 /* }}} */
 
-void zend_do_unset(const znode *variable TSRMLS_DC) /* {{{ */
+void zend_do_unset(znode *result, const znode *variable TSRMLS_DC) /* {{{ */
 {
 	zend_op *last_op;
 
-	zend_check_writable_variable(variable);
+//	zend_check_writable_variable(variable);
+	zend_do_end_variable_parse(variable, BP_VAR_UNSET, 0 TSRMLS_CC);
 
 	if (variable->op_type == IS_CV) {
 		zend_op *opline = get_next_op(CG(active_op_array) TSRMLS_CC);
 		opline->opcode = ZEND_UNSET_VAR;
 		SET_NODE(opline->op1, variable);
 		SET_UNUSED(opline->op2);
-		SET_UNUSED(opline->result);
+		opline->result.var = get_temporary_variable(CG(active_op_array));
+		opline->result_type = IS_TMP_VAR;
 		opline->extended_value = ZEND_FETCH_LOCAL | ZEND_QUICK_SET;
+		GET_NODE(result, opline->result);
 	} else {
 		last_op = &CG(active_op_array)->opcodes[get_next_op_number(CG(active_op_array))-1];
+		last_op->result_type = IS_TMP_VAR;
 
 		switch (last_op->opcode) {
 			case ZEND_FETCH_UNSET:
 				last_op->opcode = ZEND_UNSET_VAR;
-				SET_UNUSED(last_op->result);
 				break;
 			case ZEND_FETCH_DIM_UNSET:
 				last_op->opcode = ZEND_UNSET_DIM;
-				SET_UNUSED(last_op->result);
 				break;
 			case ZEND_FETCH_OBJ_UNSET:
 				last_op->opcode = ZEND_UNSET_OBJ;
-				SET_UNUSED(last_op->result);
 				break;
 
 		}
+		GET_NODE(result, last_op->result);
 	}
 }
 /* }}} */

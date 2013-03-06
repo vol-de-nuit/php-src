@@ -197,7 +197,7 @@ static int zend_std_call_setter(zval *object, zval *member, zval *value TSRMLS_D
 }
 /* }}} */
 
-static void zend_std_call_unsetter(zval *object, zval *member TSRMLS_DC) /* {{{ */
+static int zend_std_call_unsetter(zval *object, zval *member TSRMLS_DC) /* {{{ */
 {
 	zend_class_entry *ce = Z_OBJCE_P(object);
 
@@ -207,9 +207,12 @@ static void zend_std_call_unsetter(zval *object, zval *member TSRMLS_DC) /* {{{ 
 
 	SEPARATE_ARG_IF_REF(member);
 
-	zend_call_method_with_1_params(&object, ce, &ce->__unset, ZEND_UNSET_FUNC_NAME, NULL, member);
+	zval *ret_zval = zend_call_method_with_1_params(&object, ce, &ce->__unset, ZEND_UNSET_FUNC_NAME, NULL, member);
 
 	zval_ptr_dtor(&member);
+
+	convert_to_boolean(ret_zval);
+	return Z_LVAL_P(ret_zval)?SUCCESS:FAILURE;
 }
 /* }}} */
 
@@ -786,11 +789,12 @@ static zval **zend_std_get_property_ptr_ptr(zval *object, zval *member, const ze
 }
 /* }}} */
 
-static void zend_std_unset_property(zval *object, zval *member, const zend_literal *key TSRMLS_DC) /* {{{ */
+static int zend_std_unset_property(zval *object, zval *member, const zend_literal *key TSRMLS_DC) /* {{{ */
 {
 	zend_object *zobj;
 	zval *tmp_member = NULL;
 	zend_property_info *property_info;
+	int result = FAILURE;
 
 	zobj = Z_OBJ_P(object);
 
@@ -813,9 +817,10 @@ static void zend_std_unset_property(zval *object, zval *member, const zend_liter
 	    EXPECTED(zobj->properties_table[property_info->offset] != NULL)) {
 		zval_ptr_dtor(&zobj->properties_table[property_info->offset]);
 		zobj->properties_table[property_info->offset] = NULL;
+		result = SUCCESS;
 	} else if (UNEXPECTED(!property_info) ||
 	           !zobj->properties ||
-	           UNEXPECTED(zend_hash_quick_del(zobj->properties, property_info->name, property_info->name_length+1, property_info->h) == FAILURE)) {
+	           UNEXPECTED((result = zend_hash_quick_del(zobj->properties, property_info->name, property_info->name_length+1, property_info->h)) == FAILURE)) {
 		zend_guard *guard = NULL;
 
 		if (zobj->ce->__unset &&
@@ -827,7 +832,7 @@ static void zend_std_unset_property(zval *object, zval *member, const zend_liter
 				SEPARATE_ZVAL(&object);
 			}
 			guard->in_unset = 1; /* prevent circular unsetting */
-			zend_std_call_unsetter(object, member TSRMLS_CC);
+			result = zend_std_call_unsetter(object, member TSRMLS_CC);
 			guard->in_unset = 0;
 			zval_ptr_dtor(&object);
 		} else if (zobj->ce->__unset && guard && guard->in_unset == 1) {
@@ -838,30 +843,37 @@ static void zend_std_unset_property(zval *object, zval *member, const zend_liter
 					zend_error(E_ERROR, "Cannot access property started with '\\0'");
 				}
 			}
+			result = FAILURE;
 		}
 	} else if (EXPECTED(property_info != NULL) &&
 	           EXPECTED((property_info->flags & ZEND_ACC_STATIC) == 0) &&
 	           property_info->offset >= 0) {
 		zobj->properties_table[property_info->offset] = NULL;
+		result = SUCCESS;
 	}
 
 	if (UNEXPECTED(tmp_member != NULL)) {
 		zval_ptr_dtor(&tmp_member);
 	}
+
+	return result;
 }
 /* }}} */
 
-static void zend_std_unset_dimension(zval *object, zval *offset TSRMLS_DC) /* {{{ */
+static int zend_std_unset_dimension(zval *object, zval *offset TSRMLS_DC) /* {{{ */
 {
 	zend_class_entry *ce = Z_OBJCE_P(object);
 
 	if (instanceof_function_ex(ce, zend_ce_arrayaccess, 1 TSRMLS_CC)) {
 		SEPARATE_ARG_IF_REF(offset);
-		zend_call_method_with_1_params(&object, ce, NULL, "offsetunset", NULL, offset);
+		zval *ret_zval = zend_call_method_with_1_params(&object, ce, NULL, "offsetunset", NULL, offset);
 		zval_ptr_dtor(&offset);
-	} else {
-		zend_error_noreturn(E_ERROR, "Cannot use object of type %s as array", ce->name);
+		convert_to_boolean(ret_zval);
+		return Z_LVAL_P(ret_zval)?SUCCESS:FAILURE;
 	}
+
+	zend_error_noreturn(E_ERROR, "Cannot use object of type %s as array", ce->name);
+	return FAILURE;
 }
 /* }}} */
 

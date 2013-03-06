@@ -1676,7 +1676,7 @@ ZEND_API void zend_reset_all_cv(HashTable *symbol_table TSRMLS_DC) /* {{{ */
 }
 /* }}} */
 
-ZEND_API void zend_delete_variable(zend_execute_data *ex, HashTable *ht, const char *name, int name_len, ulong hash_value TSRMLS_DC) /* {{{ */
+ZEND_API int zend_delete_variable(zend_execute_data *ex, HashTable *ht, const char *name, int name_len, ulong hash_value TSRMLS_DC) /* {{{ */
 {
 	if (zend_hash_quick_del(ht, name, name_len, hash_value) == SUCCESS) {
 		name_len--;
@@ -1695,7 +1695,9 @@ ZEND_API void zend_delete_variable(zend_execute_data *ex, HashTable *ht, const c
 			}
 			ex = ex->prev_execute_data;
 		}
+		return SUCCESS;
 	}
+	return FAILURE;
 }
 /* }}} */
 

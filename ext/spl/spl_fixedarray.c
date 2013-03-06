@@ -454,29 +454,29 @@ static void spl_fixedarray_object_write_dimension(zval *object, zval *offset, zv
 }
 /* }}} */
 
-static inline void spl_fixedarray_object_unset_dimension_helper(spl_fixedarray_object *intern, zval *offset TSRMLS_DC) /* {{{ */
+static inline int spl_fixedarray_object_unset_dimension_helper(spl_fixedarray_object *intern, zval *offset TSRMLS_DC) /* {{{ */
 {
 	long index;
-	
+
 	if (Z_TYPE_P(offset) != IS_LONG) {
 		index = spl_offset_convert_to_long(offset TSRMLS_CC);
 	} else {
 		index = Z_LVAL_P(offset);
 	}
-	
+
 	if (index < 0 || intern->array == NULL || index >= intern->array->size) {
 		zend_throw_exception(spl_ce_RuntimeException, "Index invalid or out of range", 0 TSRMLS_CC);
-		return;
-	} else {
-		if (intern->array->elements[index]) {
-			zval_ptr_dtor(&(intern->array->elements[index]));
-		}
-		intern->array->elements[index] = NULL;
+		return FAILURE;
 	}
+	if (intern->array->elements[index]) {
+		zval_ptr_dtor(&(intern->array->elements[index]));
+	}
+	intern->array->elements[index] = NULL;
+	return SUCCESS;
 }
 /* }}} */
 
-static void spl_fixedarray_object_unset_dimension(zval *object, zval *offset TSRMLS_DC) /* {{{ */
+static int spl_fixedarray_object_unset_dimension(zval *object, zval *offset TSRMLS_DC) /* {{{ */
 {
 	spl_fixedarray_object *intern;
 
@@ -484,13 +484,14 @@ static void spl_fixedarray_object_unset_dimension(zval *object, zval *offset TSR
 
 	if (intern->fptr_offset_del) {
 		SEPARATE_ARG_IF_REF(offset);
-		zend_call_method_with_1_params(&object, intern->std.ce, &intern->fptr_offset_del, "offsetUnset", NULL, offset);
+		zval *result = zend_call_method_with_1_params(&object, intern->std.ce, &intern->fptr_offset_del, "offsetUnset", NULL, offset);
 		zval_ptr_dtor(&offset);
-		return;
+
+		convert_to_boolean(result);
+		return Z_LVAL_P(result)?SUCCESS:FAILURE;
 	}
 
-	spl_fixedarray_object_unset_dimension_helper(intern, offset TSRMLS_CC);
-
+	return spl_fixedarray_object_unset_dimension_helper(intern, offset TSRMLS_CC);
 }
 /* }}} */
 
@@ -498,13 +499,13 @@ static inline int spl_fixedarray_object_has_dimension_helper(spl_fixedarray_obje
 {
 	long index;
 	int retval;
-	
+
 	if (Z_TYPE_P(offset) != IS_LONG) {
 		index = spl_offset_convert_to_long(offset TSRMLS_CC);
 	} else {
 		index = Z_LVAL_P(offset);
 	}
-	
+
 	if (index < 0 || intern->array == NULL || index >= intern->array->size) {
 		retval = 0;
 	} else {

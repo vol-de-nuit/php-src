@@ -306,7 +306,6 @@ unticked_statement:
 	|	T_ECHO echo_expr_list ';'
 	|	T_INLINE_HTML			{ zend_do_echo(&$1 TSRMLS_CC); }
 	|	expr ';'				{ zend_do_free(&$1 TSRMLS_CC); }
-	|	T_UNSET '(' unset_variables ')' ';'
 	|	T_FOREACH '(' variable T_AS
 		{ zend_do_foreach_begin(&$1, &$2, &$3, &$4, 1 TSRMLS_CC); }
 		foreach_variable foreach_optional_arg ')' { zend_do_foreach_cont(&$1, &$2, &$4, &$6, &$7 TSRMLS_CC); }
@@ -352,12 +351,13 @@ additional_catch:
 ;
 
 unset_variables:
-		unset_variable
-	|	unset_variables ',' unset_variable
+		unset_variable		{ $$ = $1; }
+	|	unset_variables ','	{ zend_do_boolean_and_begin(&$1, &$2 TSRMLS_CC); } unset_variable { zend_do_boolean_and_end(&$$, &$1, &$4, &$2 TSRMLS_CC); }
 ;
 
 unset_variable:
-		variable	{ zend_do_end_variable_parse(&$1, BP_VAR_UNSET, 0 TSRMLS_CC); zend_do_unset(&$1 TSRMLS_CC); }
+		variable		{ zend_do_unset(&$$, &$1 TSRMLS_CC); }
+	|	expr_without_variable	{ zend_error(E_COMPILE_ERROR, "Cannot use unset() on the result of an expression, only on variables"); }
 ;
 
 function_declaration_statement:
@@ -1180,6 +1180,7 @@ internal_functions_in_yacc:
 		T_ISSET '(' isset_variables ')' { $$ = $3; }
 	|	T_EMPTY '(' variable ')'	{ zend_do_isset_or_isempty(ZEND_ISEMPTY, &$$, &$3 TSRMLS_CC); }
 	|	T_EMPTY '(' expr_without_variable ')' { zend_do_unary_op(ZEND_BOOL_NOT, &$$, &$3 TSRMLS_CC); }
+	|	T_UNSET '(' unset_variables ')' { $$ = $3; }
 	|	T_INCLUDE expr 			{ zend_do_include_or_eval(ZEND_INCLUDE, &$$, &$2 TSRMLS_CC); }
 	|	T_INCLUDE_ONCE expr 	{ zend_do_include_or_eval(ZEND_INCLUDE_ONCE, &$$, &$2 TSRMLS_CC); }
 	|	T_EVAL '(' expr ')' 	{ zend_do_include_or_eval(ZEND_EVAL, &$$, &$3 TSRMLS_CC); }
