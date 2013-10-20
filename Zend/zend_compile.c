@@ -5272,7 +5272,7 @@ ZEND_API int zend_unmangle_property_name_ex(const char *mangled_property, int le
 }
 /* }}} */
 
-void zend_do_declare_property(const znode *var_name, const znode *value, zend_uint access_type TSRMLS_DC) /* {{{ */
+void zend_do_declare_property(const znode *var_name, znode *value, zend_uint access_type TSRMLS_DC) /* {{{ */
 {
 	zval *property;
 	zend_property_info *existing_property_info;
@@ -5294,6 +5294,10 @@ void zend_do_declare_property(const znode *var_name, const znode *value, zend_ui
 
 	if (zend_hash_find(&CG(active_class_entry)->properties_info, Z_STRVAL(var_name->u.constant), Z_STRLEN(var_name->u.constant)+1, (void **) &existing_property_info)==SUCCESS) {
 		zend_error(E_COMPILE_ERROR, "Cannot redeclare %s::$%s", CG(active_class_entry)->name, Z_STRVAL(var_name->u.constant));
+	}
+
+	if (value->op_type == IS_OP_ARRAY) {
+		value->u.constant = zend_transform_znode_op_array_zval(value);
 	}
 	ALLOC_ZVAL(property);
 

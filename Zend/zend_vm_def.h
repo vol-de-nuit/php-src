@@ -3258,6 +3258,7 @@ ZEND_VM_HANDLER(64, ZEND_RECV_INIT, ANY, CONST)
 			zval_update_constant(&assignment_value, 0 TSRMLS_CC);
 		} else {
 			zval_copy_ctor(assignment_value);
+			zend_execute_if_zval_op_array(assignment_value);
 		}
 		INIT_PZVAL(assignment_value);
 	} else {
@@ -5179,7 +5180,7 @@ ZEND_VM_HANDLER(150, ZEND_USER_OPCODE, ANY, ANY)
 	}
 }
 
-ZEND_VM_HANDLER(143, ZEND_DECLARE_CONST, CONST, CONST|OP_ARRAY)
+ZEND_VM_HANDLER(143, ZEND_DECLARE_CONST, CONST, CONST)
 {
 	USE_OPLINE
 	zend_free_op free_op1, free_op2;

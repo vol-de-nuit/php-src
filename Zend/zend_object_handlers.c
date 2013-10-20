@@ -80,6 +80,7 @@ ZEND_API void rebuild_object_properties(zend_object *zobj) /* {{{ */
 				    (prop_info->flags & ZEND_ACC_STATIC) == 0 &&
 				    prop_info->offset >= 0 &&
 				    zobj->properties_table[prop_info->offset]) {
+					zend_execute_if_zval_op_array(zobj->properties_table[prop_info->offset]);
 					zend_hash_quick_add(zobj->properties, prop_info->name, prop_info->name_length+1, prop_info->h, (void**)&zobj->properties_table[prop_info->offset], sizeof(zval*), (void**)&zobj->properties_table[prop_info->offset]);
 				}
 			}
@@ -92,7 +93,8 @@ ZEND_API void rebuild_object_properties(zend_object *zobj) /* {{{ */
 					    (prop_info->flags & ZEND_ACC_STATIC) == 0 &&
 					    (prop_info->flags & ZEND_ACC_PRIVATE) != 0 &&
 					    prop_info->offset >= 0 &&
-						zobj->properties_table[prop_info->offset]) {
+					    zobj->properties_table[prop_info->offset]) {
+						zend_execute_if_zval_op_array(zobj->properties_table[prop_info->offset]);
 						zend_hash_quick_add(zobj->properties, prop_info->name, prop_info->name_length+1, prop_info->h, (void**)&zobj->properties_table[prop_info->offset], sizeof(zval*), (void**)&zobj->properties_table[prop_info->offset]);
 					}
 				}
@@ -516,6 +518,7 @@ zval *zend_std_read_property(zval *object, zval *member, int type, const zend_li
 		zval_ptr_dtor(&tmp_member);
 		Z_DELREF_PP(retval);
 	}
+	zend_execute_if_zval_op_array(*retval);
 	return *retval;
 }
 /* }}} */
@@ -1234,6 +1237,7 @@ ZEND_API zval **zend_std_get_static_property(zend_class_entry *ce, const char *p
 {
 	zend_property_info *property_info;
 	ulong hash_value;
+	zval **ret;
 
 	if (UNEXPECTED(!key) ||
 	    (property_info = CACHED_POLYMORPHIC_PTR(key->cache_slot, ce)) == NULL) {
@@ -1282,8 +1286,11 @@ ZEND_API zval **zend_std_get_static_property(zend_class_entry *ce, const char *p
 		}
 		return NULL;
 	}
-	
-	return &CE_STATIC_MEMBERS(ce)[property_info->offset];
+
+	ret = &CE_STATIC_MEMBERS(ce)[property_info->offset];
+	zend_execute_if_zval_op_array(*ret);
+
+	return ret;
 }
 /* }}} */
 

@@ -69,9 +69,12 @@ ZEND_API void _zval_dtor_func(zval *zvalue ZEND_FILE_LINE_DC)
 		case IS_NULL:
 		default:
 			if (Z_TYPE_P(zvalue) == IS_OP_ARRAY) {
-				if (!--*Z_OP_ARRAY_P(zvalue)->refcount)
+				if (!--*Z_OP_ARRAY_P(zvalue)->refcount) {
 					efree(Z_OP_ARRAY_P(zvalue)->refcount);
-				efree(Z_OP_ARRAY_P(zvalue));
+					if (Z_OP_ARRAY_P(zvalue)->run_time_cache)
+						efree(Z_OP_ARRAY_P(zvalue)->run_time_cache);
+					efree(Z_OP_ARRAY_P(zvalue));
+				}
 			}
 			return;
 	}
@@ -99,9 +102,12 @@ ZEND_API void _zval_internal_dtor(zval *zvalue ZEND_FILE_LINE_DC)
 		case IS_NULL:
 		default:
 			if (Z_TYPE_P(zvalue) == IS_OP_ARRAY) {
-				if (!--*Z_OP_ARRAY_P(zvalue)->refcount)
+				if (!--*Z_OP_ARRAY_P(zvalue)->refcount) {
 					efree(Z_OP_ARRAY_P(zvalue)->refcount);
-				efree(Z_OP_ARRAY_P(zvalue));
+					if (Z_OP_ARRAY_P(zvalue)->run_time_cache)
+						efree(Z_OP_ARRAY_P(zvalue)->run_time_cache);
+					efree(Z_OP_ARRAY_P(zvalue));
+				}
 			}
 			break;
 	}
@@ -158,10 +164,10 @@ ZEND_API void _zval_copy_ctor_func(zval *zvalue ZEND_FILE_LINE_DC)
 		case IS_NULL:
 		default:
 			if (Z_TYPE_P(zvalue) == IS_OP_ARRAY) {
-				struct _zend_op_array *op_array = emalloc(sizeof(struct _zend_op_array));
-				memcpy(op_array, Z_OP_ARRAY_P(zvalue), sizeof(struct _zend_op_array));
-				++*op_array->refcount;
-				Z_OP_ARRAY_P(zvalue) = op_array;
+//				struct _zend_op_array *op_array = emalloc(sizeof(struct _zend_op_array));
+//				memcpy(op_array, Z_OP_ARRAY_P(zvalue), sizeof(struct _zend_op_array));
+				++*Z_OP_ARRAY_P(zvalue)->refcount;
+//				Z_OP_ARRAY_P(zvalue) = op_array;
 			}
 
 	}

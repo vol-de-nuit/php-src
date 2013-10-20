@@ -568,7 +568,7 @@ void zend_do_default_before_statement(const znode *case_list, znode *default_tok
 
 void zend_do_begin_class_declaration(const znode *class_token, znode *class_name, const znode *parent_class_name TSRMLS_DC);
 void zend_do_end_class_declaration(const znode *class_token, const znode *parent_token TSRMLS_DC);
-void zend_do_declare_property(const znode *var_name, const znode *value, zend_uint access_type TSRMLS_DC);
+void zend_do_declare_property(const znode *var_name, znode *value, zend_uint access_type TSRMLS_DC);
 void zend_do_declare_class_constant(znode *var_name, znode *value TSRMLS_DC);
 
 void zend_do_fetch_property(znode *result, znode *object, const znode *property TSRMLS_DC);

@@ -1546,7 +1546,7 @@ void zend_execute_if_zval_op_array(zval *zv) /* {{{ */
 
 void zend_execute_zval_op_array(zval *zv) /* {{{ */
 {
-//	zval **retval;
+	zval *retval = NULL;
 //	zval **original_return_value;
 	zend_op **original_opline_ptr;
 	zend_op_array *original_op_array;
@@ -1565,18 +1565,27 @@ void zend_execute_zval_op_array(zval *zv) /* {{{ */
 	execute_data.object = NULL;
 	execute_data.prev_execute_data = EG(current_execute_data);*/
 //	EG(current_execute_data).prev_execute_data = ;
+	if (!EG(return_value_ptr_ptr)) {
+//		ALLOC_ZVAL(retval);
+		EG(return_value_ptr_ptr) = &retval;
+	}
 
 	zend_execute(Z_OP_ARRAY_P(zv));
 
-	if (!--*Z_OP_ARRAY_P(zv)->refcount)
+/*	if (!--*Z_OP_ARRAY_P(zv)->refcount)
 		efree(Z_OP_ARRAY_P(zv)->refcount);
 	if (Z_OP_ARRAY_P(zv)->run_time_cache)
 		efree(Z_OP_ARRAY_P(zv)->run_time_cache);
 	efree(Z_OP_ARRAY_P(zv));
+*/
+	zval_dtor(zv);
 
 	*zv = **EG(return_value_ptr_ptr);
 
 	efree(*EG(return_value_ptr_ptr));
+	if (retval) {
+		EG(return_value_ptr_ptr) = NULL;
+	}
 
 //	EG(current_execute_data) = &execute_data;
 //	execute_data = 
