@@ -42,11 +42,12 @@
 /* Virtual current working directory support */
 #include "tsrm_virtual_cwd.h"
 
-#define _CONST_CODE  0
-#define _TMP_CODE    1
-#define _VAR_CODE    2
-#define _UNUSED_CODE 3
-#define _CV_CODE     4
+#define _CONST_CODE    0
+#define _TMP_CODE      1
+#define _VAR_CODE      2
+#define _UNUSED_CODE   3
+#define _CV_CODE       4
+#define _OP_ARRAY_CODE 5
 
 typedef int (*incdec_t)(zval *);
 
@@ -168,6 +169,16 @@ static zend_always_inline void zend_pzval_unlock_free_func(zval *z TSRMLS_DC)
 
 #undef EX
 #define EX(element) execute_data->element
+
+static zend_always_inline zval *create_zval_from_op_array(zend_op_array *op_array TSRMLS_DC)
+{
+	zval *val;
+	ALLOC_ZVAL(val);
+	Z_OP_ARRAY_P(val) = op_array;
+	Z_TYPE_P(val) = IS_OP_ARRAY;
+	zend_append_individual_literal(EG(active_op_array), val TSRMLS_CC);
+	return val;
+}
 
 ZEND_API zval** zend_get_compiled_variable_value(const zend_execute_data *execute_data, zend_uint var)
 {
@@ -349,6 +360,7 @@ static inline zval *_get_zval_ptr(int op_type, const znode_op *node, const zend_
 /*	should_free->is_var = 0; */
 	switch (op_type) {
 		case IS_CONST:
+		case IS_OP_ARRAY:
 			should_free->var = 0;
 			return node->zv;
 			break;
@@ -1521,6 +1533,59 @@ static zend_always_inline void i_free_compiled_variables(zend_execute_data *exec
 void zend_free_compiled_variables(zend_execute_data *execute_data TSRMLS_DC) /* {{{ */
 {
 	i_free_compiled_variables(execute_data TSRMLS_CC);
+}
+/* }}} */
+
+void zend_execute_if_zval_op_array(zval *zv) /* {{{ */
+{
+	if (Z_TYPE_P(zv) == IS_OP_ARRAY) {
+		zend_execute_zval_op_array(zv);
+	}
+}
+/* }}} */
+
+void zend_execute_zval_op_array(zval *zv) /* {{{ */
+{
+//	zval **retval;
+//	zval **original_return_value;
+	zend_op **original_opline_ptr;
+	zend_op_array *original_op_array;
+	HashTable *calling_symbol_table;
+//	zend_execute_data *execute_data;
+
+//	original_return_value = EG(return_value_ptr_ptr);
+	original_op_array = EG(active_op_array);
+	original_opline_ptr = EG(opline_ptr);
+	calling_symbol_table = EG(active_symbol_table);
+//	EG(return_value_ptr_ptr) = retval;
+	EG(active_op_array) = Z_OP_ARRAY_P(zv);
+//	execute_data = *EG(current_execute_data);
+/*	execute_data.op_array = NULL;
+	execute_data.opline = NULL;
+	execute_data.object = NULL;
+	execute_data.prev_execute_data = EG(current_execute_data);*/
+//	EG(current_execute_data).prev_execute_data = ;
+
+	zend_execute(Z_OP_ARRAY_P(zv));
+
+	if (!--*Z_OP_ARRAY_P(zv)->refcount)
+		efree(Z_OP_ARRAY_P(zv)->refcount);
+	if (Z_OP_ARRAY_P(zv)->run_time_cache)
+		efree(Z_OP_ARRAY_P(zv)->run_time_cache);
+	efree(Z_OP_ARRAY_P(zv));
+
+	*zv = **EG(return_value_ptr_ptr);
+
+	efree(*EG(return_value_ptr_ptr));
+
+//	EG(current_execute_data) = &execute_data;
+//	execute_data = 
+	EG(current_execute_data) = EG(current_execute_data)->prev_execute_data;
+
+	EG(active_symbol_table) = calling_symbol_table;
+	EG(active_op_array) = original_op_array;
+//	EG(return_value_ptr_ptr) = original_return_value;
+	EG(opline_ptr) = original_opline_ptr;
 }
 /* }}} */
 

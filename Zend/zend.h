@@ -327,6 +327,7 @@ typedef union _zvalue_value {
 	} str;
 	HashTable *ht;				/* hash table value */
 	zend_object_value obj;
+	struct _zend_op_array *op_array;
 } zvalue_value;
 
 struct _zval_struct {

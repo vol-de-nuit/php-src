@@ -290,6 +290,8 @@ ZEND_API int zend_get_constant(const char *name, uint name_len, zval *result TSR
 	}
 
 	if (retval) {
+		zend_execute_if_zval_op_array(&c->value);
+
 		*result = c->value;
 		zval_copy_ctor(result);
 		Z_SET_REFCOUNT_P(result, 1);
@@ -464,6 +466,7 @@ zend_constant *zend_quick_get_constant(const zend_literal *key, ulong flags TSRM
 			}
 		}
 	}
+	zend_execute_if_zval_op_array(&c->value);
 	return c;
 }
 

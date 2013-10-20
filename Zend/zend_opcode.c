@@ -63,7 +63,9 @@ void init_op_array(zend_op_array *op_array, zend_uchar type, int initial_ops_siz
 	*op_array->refcount = 1;
 	op_array->last = 0;
 	op_array->opcodes = NULL;
-	op_array_alloc_ops(op_array, initial_ops_size);
+	if (initial_ops_size > 0) {
+		op_array_alloc_ops(op_array, initial_ops_size);
+	}
 
 	op_array->last_var = 0;
 	op_array->vars = NULL;
@@ -686,6 +688,26 @@ ZEND_API int pass_two(zend_op_array *op_array TSRMLS_DC)
 		}
 		if (opline->op2_type == IS_CONST) {
 			opline->op2.zv = &op_array->literals[opline->op2.constant].constant;
+		}
+		if (opline->op1_type == IS_OP_ARRAY) {
+			int literal;
+			zval *zv;
+			ALLOC_ZVAL(zv);
+			Z_TYPE_P(zv) = IS_OP_ARRAY;
+			Z_OP_ARRAY_P(zv) = opline->op1.op_array;
+			literal = zend_append_individual_literal(op_array, zv TSRMLS_CC);
+			efree(zv);
+			opline->op1.zv = &op_array->literals[literal].constant;
+		}
+		if (opline->op2_type == IS_OP_ARRAY) {
+			int literal;
+			zval *zv;
+			ALLOC_ZVAL(zv);
+			Z_TYPE_P(zv) = IS_OP_ARRAY;
+			Z_OP_ARRAY_P(zv) = opline->op2.op_array;
+			literal = zend_append_individual_literal(op_array, zv TSRMLS_CC);
+			efree(zv);
+			opline->op2.zv = &op_array->literals[literal].constant;
 		}
 		switch (opline->opcode) {
 			case ZEND_GOTO:

@@ -65,10 +65,15 @@ ZEND_API void _zval_dtor_func(zval *zvalue ZEND_FILE_LINE_DC)
 		case IS_LONG:
 		case IS_DOUBLE:
 		case IS_BOOL:
+			return;
 		case IS_NULL:
 		default:
+			if (Z_TYPE_P(zvalue) == IS_OP_ARRAY) {
+				if (!--*Z_OP_ARRAY_P(zvalue)->refcount)
+					efree(Z_OP_ARRAY_P(zvalue)->refcount);
+				efree(Z_OP_ARRAY_P(zvalue));
+			}
 			return;
-			break;
 	}
 }
 
@@ -90,8 +95,14 @@ ZEND_API void _zval_internal_dtor(zval *zvalue ZEND_FILE_LINE_DC)
 		case IS_LONG:
 		case IS_DOUBLE:
 		case IS_BOOL:
+			break;
 		case IS_NULL:
 		default:
+			if (Z_TYPE_P(zvalue) == IS_OP_ARRAY) {
+				if (!--*Z_OP_ARRAY_P(zvalue)->refcount)
+					efree(Z_OP_ARRAY_P(zvalue)->refcount);
+				efree(Z_OP_ARRAY_P(zvalue));
+			}
 			break;
 	}
 }
@@ -111,10 +122,6 @@ ZEND_API void _zval_copy_ctor_func(zval *zvalue ZEND_FILE_LINE_DC)
 
 				zend_list_addref(zvalue->value.lval);
 			}
-			break;
-		case IS_BOOL:
-		case IS_LONG:
-		case IS_NULL:
 			break;
 		case IS_CONSTANT:
 		case IS_STRING:
@@ -145,11 +152,23 @@ ZEND_API void _zval_copy_ctor_func(zval *zvalue ZEND_FILE_LINE_DC)
 				Z_OBJ_HT_P(zvalue)->add_ref(zvalue TSRMLS_CC);
 			}
 			break;
+		case IS_BOOL:
+		case IS_LONG:
+			break;
+		case IS_NULL:
+		default:
+			if (Z_TYPE_P(zvalue) == IS_OP_ARRAY) {
+				struct _zend_op_array *op_array = emalloc(sizeof(struct _zend_op_array));
+				memcpy(op_array, Z_OP_ARRAY_P(zvalue), sizeof(struct _zend_op_array));
+				++*op_array->refcount;
+				Z_OP_ARRAY_P(zvalue) = op_array;
+			}
+
 	}
 }
 
 
-ZEND_API int zend_print_variable(zval *var) 
+ZEND_API int zend_print_variable(zval *var)
 {
 	return zend_print_zval(var, 0);
 }

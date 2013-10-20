@@ -3593,6 +3593,7 @@ ZEND_VM_HANDLER(99, ZEND_FETCH_CONSTANT, VAR|CONST|UNUSED, CONST)
 			} else {
 				CACHE_POLYMORPHIC_PTR(opline->op2.literal->cache_slot, ce, value);
 			}
+			zend_execute_if_zval_op_array(*value);
 			ZVAL_COPY_VALUE(&EX_T(opline->result.var).tmp_var, *value);
 			zval_copy_ctor(&EX_T(opline->result.var).tmp_var);
 		} else if (Z_STRLEN_P(opline->op2.zv) == sizeof("class")-1 && strcmp(Z_STRVAL_P(opline->op2.zv), "class") == 0) {
@@ -5178,7 +5179,7 @@ ZEND_VM_HANDLER(150, ZEND_USER_OPCODE, ANY, ANY)
 	}
 }
 
-ZEND_VM_HANDLER(143, ZEND_DECLARE_CONST, CONST, CONST)
+ZEND_VM_HANDLER(143, ZEND_DECLARE_CONST, CONST, CONST|OP_ARRAY)
 {
 	USE_OPLINE
 	zend_free_op free_op1, free_op2;

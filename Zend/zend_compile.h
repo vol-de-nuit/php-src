@@ -84,6 +84,7 @@ typedef union _znode_op {
 	zval          *zv;
 	zend_literal  *literal;
 	void          *ptr;        /* Used for passing pointers from the compile to execution phase, currently used for traits */
+	zend_op_array *op_array;
 } znode_op;
 
 typedef struct _znode { /* used only during compilation */ 
@@ -414,7 +415,10 @@ struct _zend_execute_data {
 #define IS_UNUSED	(1<<3)	/* Unused variable */
 #define IS_CV		(1<<4)	/* Compiled variable */
 
-#define EXT_TYPE_UNUSED	(1<<5)
+#define IS_OP_ARRAY	(1<<5)
+
+#define EXT_TYPE_UNUSED	(1<<6)
+
 
 #include "zend_globals.h"
 
@@ -447,6 +451,7 @@ const char *zend_get_zendtext(TSRMLS_D);
 int zend_get_zendleng(TSRMLS_D);
 #endif
 
+zval zend_transform_znode_op_array_zval(znode *znode);
 
 /* parser-driven code generators */
 void zend_do_binary_op(zend_uchar op, znode *result, const znode *op1, const znode *op2 TSRMLS_DC);
@@ -564,7 +569,7 @@ void zend_do_default_before_statement(const znode *case_list, znode *default_tok
 void zend_do_begin_class_declaration(const znode *class_token, znode *class_name, const znode *parent_class_name TSRMLS_DC);
 void zend_do_end_class_declaration(const znode *class_token, const znode *parent_token TSRMLS_DC);
 void zend_do_declare_property(const znode *var_name, const znode *value, zend_uint access_type TSRMLS_DC);
-void zend_do_declare_class_constant(znode *var_name, const znode *value TSRMLS_DC);
+void zend_do_declare_class_constant(znode *var_name, znode *value TSRMLS_DC);
 
 void zend_do_fetch_property(znode *result, znode *object, const znode *property TSRMLS_DC);
 
@@ -630,6 +635,9 @@ void zend_do_extended_fcall_end(TSRMLS_D);
 void zend_do_ticks(TSRMLS_D);
 
 void zend_do_abstract_method(const znode *function_name, znode *modifiers, const znode *body TSRMLS_DC);
+
+void zend_do_register_scalar_op(TSRMLS_D);
+void zend_do_constant_op_array(const znode *val, znode *ret TSRMLS_DC);
 
 void zend_do_declare_constant(znode *name, znode *value TSRMLS_DC);
 void zend_do_build_namespace_name(znode *result, znode *prefix, znode *name TSRMLS_DC);

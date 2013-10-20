@@ -201,6 +201,8 @@ void zend_init_compiler_data_structures(TSRMLS_D) /* {{{ */
 	zend_stack_init(&CG(context_stack));
 
 	CG(encoding_declared) = 0;
+
+	CG(static_scalar_start_op_num) = -1;
 }
 /* }}} */
 
@@ -4669,6 +4671,8 @@ void zend_do_early_binding(TSRMLS_D) /* {{{ */
 			/* We currently don't early-bind classes that implement interfaces */
 			/* Classes with traits are handled exactly the same, no early-bind here */
 			return;
+		case ZEND_RETURN:
+			return;
 		default:
 			zend_error(E_COMPILE_ERROR, "Invalid binding type");
 			return;
@@ -5312,7 +5316,7 @@ void zend_do_declare_property(const znode *var_name, const znode *value, zend_ui
 }
 /* }}} */
 
-void zend_do_declare_class_constant(znode *var_name, const znode *value TSRMLS_DC) /* {{{ */
+void zend_do_declare_class_constant(znode *var_name, znode *value TSRMLS_DC) /* {{{ */
 {
 	zval *property;
 	const char *cname = NULL;
@@ -5325,6 +5329,9 @@ void zend_do_declare_class_constant(znode *var_name, const znode *value TSRMLS_D
 	if ((CG(active_class_entry)->ce_flags & ZEND_ACC_TRAIT) == ZEND_ACC_TRAIT) {
 		zend_error(E_COMPILE_ERROR, "Traits cannot have constants");
 		return;
+	}
+	if (value->op_type == IS_OP_ARRAY) {
+		value->u.constant = zend_transform_znode_op_array_zval(value);
 	}
 
 	ALLOC_ZVAL(property);
@@ -7055,8 +7062,75 @@ void zend_do_use(znode *ns_name, znode *new_name, int is_global TSRMLS_DC) /* {{
 	}
 	efree(lcname);
 	zval_dtor(name);
+} /* }}} */
+
+zval zend_transform_znode_op_array_zval(znode *znode) /* {{{ */
+{
+	zval zv;
+	Z_TYPE(zv) = IS_OP_ARRAY;
+	Z_OP_ARRAY(zv) = znode->u.op_array;
+	return zv;
+} /* }}} */
+
+void zend_do_register_scalar_op(TSRMLS_D) /* {{{ */
+{
+	if (CG(static_scalar_start_op_num) == -1) {
+		zend_op *opline;
+
+		CG(static_scalar_start_op_num) = get_next_op_number(CG(active_op_array));
+		CG(static_scalar_start_T) = CG(active_op_array)->T;
+
+		opline = get_next_op(CG(active_op_array) TSRMLS_CC);
+		opline->opcode = ZEND_JMP;
+		SET_UNUSED(opline->op1);
+		SET_UNUSED(opline->op2);
+	}
+} /* }}} */
+
+void zend_do_constant_op_array(const znode *val, znode *ret TSRMLS_DC) /* {{{ */
+{
+	zend_op *opline;
+	zend_op_array *op_array = emalloc(sizeof(zend_op_array));
+	int i;
+
+	opline = get_next_op(CG(active_op_array) TSRMLS_CC);
+	opline->opcode = ZEND_RETURN;
+	SET_NODE(opline->op1, val);
+	SET_UNUSED(opline->op2);
+
+	opline = CG(active_op_array)->opcodes + CG(static_scalar_start_op_num);
+	opline->op1.opline_num = get_next_op_number(CG(active_op_array));
+
+	// THIS OP_ARRAY MUST NOT BE DESTROYED (just efree()'d)
+	init_op_array(op_array, ZEND_EVAL_CODE, 0);
+	op_array->last = opline->op1.opline_num - CG(static_scalar_start_op_num);
+	op_array->opcodes = opline + 1;
+	// We should just need already defined literals or cache entries
+	op_array->literals = CG(active_op_array)->literals;
+	op_array->last_literal = CG(active_op_array)->last_literal;
+	op_array->run_time_cache = CG(active_op_array)->run_time_cache;
+	op_array->last_cache_slot = CG(active_op_array)->last_cache_slot;
+	op_array->T = CG(active_op_array)->T - CG(static_scalar_start_T);
+
+	for (i = 0; i < op_array->last; i++) {
+		if (op_array->opcodes[i].op1_type == IS_TMP_VAR) {
+			op_array->opcodes[i].op1.var += CG(static_scalar_start_T);
+		}
+		if (op_array->opcodes[i].op2_type == IS_TMP_VAR) {
+			op_array->opcodes[i].op2.var += CG(static_scalar_start_T);
+		}
+		if (op_array->opcodes[i].result_type == IS_TMP_VAR) {
+			op_array->opcodes[i].result.var += CG(static_scalar_start_T);
+		}
+	}
+
+	CG(active_op_array)->T = CG(static_scalar_start_T);
+	CG(static_scalar_start_op_num) = -1;
+
+	ret->u.op_array = op_array;
+//	Z_TYPE(ret->u.constant) = IS_OP_ARRAY;
+	ret->op_type = IS_OP_ARRAY;
 }
-/* }}} */
 
 void zend_do_declare_constant(znode *name, znode *value TSRMLS_DC) /* {{{ */
 {

@@ -151,6 +151,9 @@ struct _zend_compiler_globals {
 	zend_bool detect_unicode;
 	zend_bool encoding_declared;
 
+	zend_uint static_scalar_start_op_num;
+	zend_uint static_scalar_start_T;
+
 #ifdef ZTS
 	zval ***static_members_table;
 	int last_static_member;

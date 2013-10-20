@@ -30,6 +30,7 @@
 #include "zend_strtod.h"
 #include "zend_exceptions.h"
 #include "zend_closures.h"
+#include "zend_constants.h"
 
 #if ZEND_USE_TOLOWER_L
 #include <locale.h>
@@ -62,6 +63,20 @@ static const unsigned char tolower_map[256] = {
 };
 
 #define zend_tolower_ascii(c) (tolower_map[(unsigned char)(c)])
+
+static inline zend_bool fetch_eventual_constant(zval **op) {
+	if (Z_TYPE_PP(op) == IS_CONSTANT) {
+		zval *constant;
+		ALLOC_ZVAL(constant);
+		if (zend_get_constant_ex(Z_STRVAL_PP(op), Z_STRLEN_PP(op), constant, NULL, ZEND_FETCH_CLASS_SILENT TSRMLS_CC)) {
+			**op = *constant;
+		} else {
+			Z_TYPE_PP(op) = IS_STRING;
+		}
+		efree(constant);
+	}
+	return 1;
+}
 
 /**
  * Functions using locale lowercase:
@@ -183,6 +198,7 @@ ZEND_API double zend_string_to_double(const char *number, zend_uint length) /* {
 
 ZEND_API void convert_scalar_to_number(zval *op TSRMLS_DC) /* {{{ */
 {
+	fetch_eventual_constant(&op);
 	switch (Z_TYPE_P(op)) {
 		case IS_STRING:
 			{
@@ -219,6 +235,7 @@ ZEND_API void convert_scalar_to_number(zval *op TSRMLS_DC) /* {{{ */
 			convert_scalar_to_number(op TSRMLS_CC);					\
 		}															\
 	} else {														\
+		fetch_eventual_constant(&op);													\
 		switch (Z_TYPE_P(op)) {										\
 			case IS_STRING:											\
 				{													\
@@ -254,7 +271,7 @@ ZEND_API void convert_scalar_to_number(zval *op TSRMLS_DC) /* {{{ */
 #define zendi_convert_to_long(op, holder, result)					\
 	if (op == result) {												\
 		convert_to_long(op);										\
-	} else if (Z_TYPE_P(op) != IS_LONG) {							\
+	} else if (fetch_eventual_constant(&op) && Z_TYPE_P(op) != IS_LONG) {							\
 		switch (Z_TYPE_P(op)) {										\
 			case IS_NULL:											\
 				Z_LVAL(holder) = 0;									\
@@ -292,7 +309,7 @@ ZEND_API void convert_scalar_to_number(zval *op TSRMLS_DC) /* {{{ */
 #define zendi_convert_to_boolean(op, holder, result)				\
 	if (op==result) {												\
 		convert_to_boolean(op);										\
-	} else if (Z_TYPE_P(op) != IS_BOOL) {							\
+	} else if (fetch_eventual_constant(&op) && Z_TYPE_P(op) != IS_BOOL) {							\
 		switch (Z_TYPE_P(op)) {										\
 			case IS_NULL:											\
 				Z_LVAL(holder) = 0;									\
@@ -370,6 +387,7 @@ ZEND_API void convert_to_long_base(zval *op, int base) /* {{{ */
 {
 	long tmp;
 
+	fetch_eventual_constant(&op);
 	switch (Z_TYPE_P(op)) {
 		case IS_NULL:
 			Z_LVAL_P(op) = 0;
@@ -430,6 +448,7 @@ ZEND_API void convert_to_double(zval *op) /* {{{ */
 {
 	double tmp;
 
+	fetch_eventual_constant(&op);
 	switch (Z_TYPE_P(op)) {
 		case IS_NULL:
 			Z_DVAL_P(op) = 0.0;
@@ -512,6 +531,7 @@ ZEND_API void convert_to_boolean(zval *op) /* {{{ */
 {
 	int tmp;
 
+	fetch_eventual_constant(&op);
 	switch (Z_TYPE_P(op)) {
 		case IS_BOOL:
 			break;
@@ -575,6 +595,7 @@ ZEND_API void convert_to_boolean(zval *op) /* {{{ */
 ZEND_API void _convert_to_cstring(zval *op ZEND_FILE_LINE_DC) /* {{{ */
 {
 	double dval;
+	fetch_eventual_constant(&op);
 	switch (Z_TYPE_P(op)) {
 		case IS_DOUBLE: {
 			TSRMLS_FETCH();
@@ -595,6 +616,7 @@ ZEND_API void _convert_to_string(zval *op ZEND_FILE_LINE_DC) /* {{{ */
 	long lval;
 	double dval;
 
+	fetch_eventual_constant(&op);
 	switch (Z_TYPE_P(op)) {
 		case IS_NULL:
 			Z_STRVAL_P(op) = STR_EMPTY_ALLOC();
