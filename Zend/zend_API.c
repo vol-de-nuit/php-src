@@ -221,7 +221,7 @@ ZEND_API zend_string *zend_get_object_classname(const zend_object *object TSRMLS
 }
 /* }}} */
 
-static int parse_arg_object_to_string(zval *arg, char **p, int *pl, int type TSRMLS_DC) /* {{{ */
+ZEND_API int parse_arg_object_to_string(zval *arg, char **p, int *pl, int type TSRMLS_DC) /* {{{ */
 {
 	if (Z_OBJ_HANDLER_P(arg, cast_object)) {
 		zval obj;
@@ -300,7 +300,8 @@ ZEND_API int parse_arg_object_to_str(zval *arg, zend_string **str, int type TSRM
 }
 /* }}} */
 
-#ifdef FAST_ZPP
+#if 0
+
 ZEND_API void zend_wrong_paramers_count_error(int num_args, int min_num_args, int max_num_args TSRMLS_DC) /* {{{ */
 {
 	zend_function *active_function = EG(current_execute_data)->func;
@@ -386,6 +387,7 @@ ZEND_API int _z_param_class(zval *arg, zend_class_entry **pce, int num, int chec
 	return 1;
 }
 /* }}} */
+
 #endif
 
 static const char *zend_parse_arg_impl(int arg_num, zval *arg, va_list *va, const char **spec, char **error, int *severity TSRMLS_DC) /* {{{ */

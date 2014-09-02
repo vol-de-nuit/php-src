@@ -1095,9 +1095,9 @@ void name(INTERNAL_FUNCTION_PARAMETERS) { \
 	char *filename; \
 	int filename_len; \
 	\
-	ZEND_PARSE_PARAMETERS_START(1, 1) \
-		Z_PARAM_PATH(filename, filename_len) \
-	ZEND_PARSE_PARAMETERS_END(); \
+	zend_parse_parameters_new(Z_PARAM_PATH(filename, filename_len), { \
+		return; \
+	}) \
 	\
 	php_stat(filename, (php_stat_len) filename_len, funcnum, return_value TSRMLS_CC); \
 }

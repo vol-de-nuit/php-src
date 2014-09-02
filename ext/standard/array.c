@@ -292,17 +292,9 @@ PHP_FUNCTION(count)
 	long cnt;
 	zval *element;
 
-#ifndef FAST_ZPP
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z|l", &array, &mode) == FAILURE) {
+	zend_parse_parameters_new(Z_PARAM_ZVAL(array) Z_OPTIONAL Z_PARAM_LONG(mode), {
 		return;
-	}
-#else
-	ZEND_PARSE_PARAMETERS_START(1, 2)
-		Z_PARAM_ZVAL(array)
-		Z_PARAM_OPTIONAL
-		Z_PARAM_LONG(mode)
-	ZEND_PARSE_PARAMETERS_END();
-#endif
+	})
 
 	switch (Z_TYPE_P(array)) {
 		case IS_NULL:
@@ -784,15 +776,9 @@ PHP_FUNCTION(end)
 	HashTable *array;
 	zval *entry;
 
-#ifndef FAST_ZPP
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "H/", &array) == FAILURE) {
+	zend_parse_parameters_new(Z_PARAM_HT_OR_OBJECT(array), {
 		return;
-	}
-#else
-	ZEND_PARSE_PARAMETERS_START(1, 1)
-		Z_PARAM_ARRAY_OR_OBJECT_HT_EX(array, 0, 1)
-	ZEND_PARSE_PARAMETERS_END();
-#endif
+	})
 
 	zend_hash_internal_pointer_end(array);
 
@@ -817,15 +803,9 @@ PHP_FUNCTION(prev)
 	HashTable *array;
 	zval *entry;
 
-#ifndef FAST_ZPP
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "H/", &array) == FAILURE) {
+	zend_parse_parameters_new(Z_PARAM_HT_OR_OBJECT(array), {
 		return;
-	}
-#else
-	ZEND_PARSE_PARAMETERS_START(1, 1)
-		Z_PARAM_ARRAY_OR_OBJECT_HT_EX(array, 0, 1)
-	ZEND_PARSE_PARAMETERS_END();
-#endif
+	})
 
 	zend_hash_move_backwards(array);
 
@@ -850,15 +830,9 @@ PHP_FUNCTION(next)
 	HashTable *array;
 	zval *entry;
 
-#ifndef FAST_ZPP
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "H/", &array) == FAILURE) {
+	zend_parse_parameters_new(Z_PARAM_HT_OR_OBJECT(array), {
 		return;
-	}
-#else
-	ZEND_PARSE_PARAMETERS_START(1, 1)
-		Z_PARAM_ARRAY_OR_OBJECT_HT_EX(array, 0, 1)
-	ZEND_PARSE_PARAMETERS_END();
-#endif
+	})
 
 	zend_hash_move_forward(array);
 
@@ -883,15 +857,9 @@ PHP_FUNCTION(reset)
 	HashTable *array;
 	zval *entry;
 
-#ifndef FAST_ZPP
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "H/", &array) == FAILURE) {
+	zend_parse_parameters_new(Z_PARAM_HT_OR_OBJECT(array), {
 		return;
-	}
-#else
-	ZEND_PARSE_PARAMETERS_START(1, 1)
-		Z_PARAM_ARRAY_OR_OBJECT_HT_EX(array, 0, 1)
-	ZEND_PARSE_PARAMETERS_END();
-#endif
+	})
 
 	zend_hash_internal_pointer_reset(array);
 
@@ -916,15 +884,9 @@ PHP_FUNCTION(current)
 	HashTable *array;
 	zval *entry;
 
-#ifndef FAST_ZPP
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "H/", &array) == FAILURE) {
+	zend_parse_parameters_new(Z_PARAM_HT_OR_OBJECT(array), {
 		return;
-	}
-#else
-	ZEND_PARSE_PARAMETERS_START(1, 1)
-		Z_PARAM_ARRAY_OR_OBJECT_HT_EX(array, 0, 1)
-	ZEND_PARSE_PARAMETERS_END();
-#endif
+	})
 
 	if ((entry = zend_hash_get_current_data(array)) == NULL) {
 		RETURN_FALSE;
@@ -944,15 +906,9 @@ PHP_FUNCTION(key)
 {
 	HashTable *array;
 
-#ifndef FAST_ZPP
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "H/", &array) == FAILURE) {
+	zend_parse_parameters_new(Z_PARAM_HT_OR_OBJECT(array), {
 		return;
-	}
-#else
-	ZEND_PARSE_PARAMETERS_START(1, 1)
-		Z_PARAM_ARRAY_OR_OBJECT_HT_EX(array, 0, 1)
-	ZEND_PARSE_PARAMETERS_END();
-#endif
+	})
 
 	zend_hash_get_current_key_zval(array, return_value);
 }
@@ -1169,24 +1125,11 @@ PHP_FUNCTION(array_walk)
 	orig_array_walk_fci = BG(array_walk_fci);
 	orig_array_walk_fci_cache = BG(array_walk_fci_cache);
 
-#ifndef FAST_ZPP
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "H/f|z/", &array, &BG(array_walk_fci), &BG(array_walk_fci_cache), &userdata) == FAILURE) {
+	zend_parse_parameters_new(Z_PARAM_HT_OR_OBJECT(array) Z_PARAM_FCALL_INFO(BG(array_walk_fci), BG(array_walk_fci_cache)) Z_OPTIONAL Z_PARAM_ZVAL_EX(userdata, Z_PARAM_BY_REF), {
 		BG(array_walk_fci) = orig_array_walk_fci;
 		BG(array_walk_fci_cache) = orig_array_walk_fci_cache;
 		return;
-	}
-#else
-	ZEND_PARSE_PARAMETERS_START(2, 3)
-		Z_PARAM_ARRAY_OR_OBJECT_HT_EX(array, 0, 1)
-		Z_PARAM_FUNC(BG(array_walk_fci), BG(array_walk_fci_cache))
-		Z_PARAM_OPTIONAL
-		Z_PARAM_ZVAL_EX(userdata, 0, 1)
-	ZEND_PARSE_PARAMETERS_END_EX(
-		BG(array_walk_fci) = orig_array_walk_fci;
-		BG(array_walk_fci_cache) = orig_array_walk_fci_cache;
-		return
-	);
-#endif
+	})
 
 	php_array_walk(array, userdata, 0 TSRMLS_CC);
 	BG(array_walk_fci) = orig_array_walk_fci;
@@ -1234,18 +1177,9 @@ static void php_search_array(INTERNAL_FUNCTION_PARAMETERS, int behavior) /* {{{ 
 	zend_string *str_idx;
 	zend_bool strict = 0;		/* strict comparison or not */
 
-#ifndef FAST_ZPP
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "za|b", &value, &array, &strict) == FAILURE) {
+	zend_parse_parameters_new(Z_PARAM_ZVAL(value) Z_PARAM_ARRAY(array) Z_OPTIONAL Z_PARAM_BOOL(strict), {
 		return;
-	}
-#else
-	ZEND_PARSE_PARAMETERS_START(2, 3)
-		Z_PARAM_ZVAL(value)
-		Z_PARAM_ARRAY(array)
-		Z_PARAM_OPTIONAL
-		Z_PARAM_BOOL(strict)
-	ZEND_PARSE_PARAMETERS_END();
-#endif
+	})
 
 	if (strict) {
 		ZEND_HASH_FOREACH_KEY_VAL(Z_ARRVAL_P(array), num_idx, str_idx, entry) {
@@ -1997,15 +1931,9 @@ static void _phpi_pop(INTERNAL_FUNCTION_PARAMETERS, int off_the_end)
 	zend_string *key = NULL;
 	ulong index;
 
-#ifndef FAST_ZPP
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "a/", &stack) == FAILURE) {
+	zend_parse_parameters_new(Z_PARAM_ARRAY(stack), {
 		return;
-	}
-#else
-	ZEND_PARSE_PARAMETERS_START(1, 1)
-		Z_PARAM_ARRAY_EX(stack, 0, 1)
-	ZEND_PARSE_PARAMETERS_END();
-#endif
+	})
 
 	if (zend_hash_num_elements(Z_ARRVAL_P(stack)) == 0) {
 		return;
@@ -2230,19 +2158,9 @@ PHP_FUNCTION(array_slice)
 	zend_string *string_key;
 	ulong num_key;
 
-#ifndef FAST_ZPP
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "al|zb", &input, &offset, &z_length, &preserve_keys) == FAILURE) {
+	zend_parse_parameters_new(Z_PARAM_ARRAY(input) Z_PARAM_LONG(offset) Z_OPTIONAL Z_PARAM_ZVAL(z_length) Z_PARAM_BOOL(preserve_keys), {
 		return;
-	}
-#else
-	ZEND_PARSE_PARAMETERS_START(2, 4)
-		Z_PARAM_ARRAY(input)
-		Z_PARAM_LONG(offset)
-		Z_PARAM_OPTIONAL
-		Z_PARAM_ZVAL(z_length)
-		Z_PARAM_BOOL(preserve_keys)
-	ZEND_PARSE_PARAMETERS_END();
-#endif
+	})
 
 	/* Get number of entries in the input hash */
 	num_in = zend_hash_num_elements(Z_ARRVAL_P(input));
@@ -2478,15 +2396,9 @@ static void php_array_merge_or_replace_wrapper(INTERNAL_FUNCTION_PARAMETERS, int
 	zval *args = NULL;
 	int argc, i, init_size = 0;
 
-#ifndef FAST_ZPP
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "+", &args, &argc) == FAILURE) {
+	zend_parse_parameters_new(Z_PARAM_VARIADIC_EX(args, argc, 1), {
 		return;
-	}
-#else
-	ZEND_PARSE_PARAMETERS_START(1, -1)
-		Z_PARAM_VARIADIC('+', args, argc)
-	ZEND_PARSE_PARAMETERS_END();
-#endif
+	})
 
 	for (i = 0; i < argc; i++) {
 		zval *arg = args + i;
@@ -2568,18 +2480,9 @@ PHP_FUNCTION(array_keys)
 	zend_string *str_idx;
 	int (*is_equal_func)(zval *, zval *, zval * TSRMLS_DC) = is_equal_function;
 
-#ifndef FAST_ZPP
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "a|zb", &input, &search_value, &strict) == FAILURE) {
+	zend_parse_parameters_new(Z_PARAM_ARRAY(input) Z_OPTIONAL Z_PARAM_ZVAL(search_value) Z_PARAM_BOOL(strict), {
 		return;
-	}
-#else
-	ZEND_PARSE_PARAMETERS_START(1, 3)
-		Z_PARAM_ARRAY(input)
-		Z_PARAM_OPTIONAL
-		Z_PARAM_ZVAL(search_value)
-		Z_PARAM_BOOL(strict)
-	ZEND_PARSE_PARAMETERS_END();
-#endif
+	})
 
 	if (strict) {
 		is_equal_func = is_identical_function;
@@ -2997,7 +2900,7 @@ PHP_FUNCTION(array_unique)
 			} else {
 				p = &cmpdata->b;
 			}
-			if (p->key == NULL) {
+ 			if (p->key == NULL) {
 				zend_hash_index_del(Z_ARRVAL_P(return_value), p->h);
 			} else {
 				if (Z_ARRVAL_P(return_value) == &EG(symbol_table).ht) {
@@ -4422,16 +4325,9 @@ PHP_FUNCTION(array_map)
 	zend_fcall_info_cache fci_cache = empty_fcall_info_cache;
 	int i, k, maxlen = 0;
 
-#ifndef FAST_ZPP
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "f!+", &fci, &fci_cache, &arrays, &n_arrays) == FAILURE) {
+	zend_parse_parameters_new(Z_PARAM_FCALL_INFO_CHECKNULL(fci, fci_cache) Z_PARAM_VARIADIC_EX(arrays, n_arrays, 1), {
 		return;
-	}
-#else
-	ZEND_PARSE_PARAMETERS_START(2, -1)
-		Z_PARAM_FUNC_EX(fci, fci_cache, 1, 0)
-		Z_PARAM_VARIADIC('+', arrays, n_arrays)
-	ZEND_PARSE_PARAMETERS_END();
-#endif
+	})
 
 	RETVAL_NULL();
 
@@ -4582,16 +4478,9 @@ PHP_FUNCTION(array_key_exists)
 	zval *key;					/* key to check for */
 	HashTable *array;			/* array to check in */
 
-#ifndef FAST_ZPP
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "zH", &key, &array) == FAILURE) {
+	zend_parse_parameters_new(Z_PARAM_ZVAL(key) Z_PARAM_HT_OR_OBJECT(array), {
 		return;
-	}
-#else
-	ZEND_PARSE_PARAMETERS_START(2, 2)
-		Z_PARAM_ZVAL(key)
-		Z_PARAM_ARRAY_OR_OBJECT_HT(array)
-	ZEND_PARSE_PARAMETERS_END();
-#endif
+	})
 
 	switch (Z_TYPE_P(key)) {
 		case IS_STRING:

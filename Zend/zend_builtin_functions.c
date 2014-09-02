@@ -524,15 +524,9 @@ ZEND_FUNCTION(strlen)
 {
 	zend_string *s;
 
-#ifndef FAST_ZPP
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "S", &s) == FAILURE) {
+	zend_parse_parameters_new(Z_PARAM_STR(s), {
 		return;
-	}
-#else
-	ZEND_PARSE_PARAMETERS_START(1, 1)
-		Z_PARAM_STR(s)
-	ZEND_PARSE_PARAMETERS_END();
-#endif
+	})
 
 	RETVAL_LONG(s->len);
 }
@@ -709,18 +703,9 @@ ZEND_FUNCTION(define)
 	int case_sensitive = CONST_CS;
 	zend_constant c;
 
-#ifndef FAST_ZPP
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "Sz|b", &name, &val, &non_cs) == FAILURE) {
+	zend_parse_parameters_new(Z_PARAM_STR(name) Z_PARAM_ZVAL(val) Z_OPTIONAL Z_PARAM_BOOL(non_cs), {
 		return;
-	}
-#else
-	ZEND_PARSE_PARAMETERS_START(2, 3)
-		Z_PARAM_STR(name)
-		Z_PARAM_ZVAL(val)
-		Z_PARAM_OPTIONAL
-		Z_PARAM_BOOL(non_cs)
-	ZEND_PARSE_PARAMETERS_END();
-#endif
+	})
 
 	if(non_cs) {
 		case_sensitive = 0;
@@ -785,15 +770,9 @@ ZEND_FUNCTION(defined)
 {
 	zend_string *name;
 
-#ifndef FAST_ZPP
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "S", &name) == FAILURE) {
+	zend_parse_parameters_new(Z_PARAM_STR(name), {
 		return;
-	}
-#else
-	ZEND_PARSE_PARAMETERS_START(1, 1)
-		Z_PARAM_STR(name)
-	ZEND_PARSE_PARAMETERS_END();
-#endif
+	})
 	
 	if (zend_get_constant_ex(name, NULL, ZEND_FETCH_CLASS_SILENT TSRMLS_CC)) {
 		RETURN_TRUE;
@@ -896,18 +875,10 @@ static void is_a_impl(INTERNAL_FUNCTION_PARAMETERS, zend_bool only_subclass)
 	zend_bool allow_string = only_subclass;
 	zend_bool retval;
 
-#ifndef FAST_ZPP
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "zS|b", &obj, &class_name, &allow_string) == FAILURE) {
+	zend_parse_parameters_new(Z_PARAM_ZVAL(obj) Z_PARAM_STR(class_name) Z_OPTIONAL Z_PARAM_BOOL(allow_string), {
 		return;
-	}
-#else
-	ZEND_PARSE_PARAMETERS_START(2, 3)
-		Z_PARAM_ZVAL(obj)
-		Z_PARAM_STR(class_name)
-		Z_PARAM_OPTIONAL
-		Z_PARAM_BOOL(allow_string)
-	ZEND_PARSE_PARAMETERS_END();
-#endif
+	})
+
 	/*
 	 * allow_string - is_a default is no, is_subclass_of is yes. 
 	 *   if it's allowed, then the autoloader will be called if the class does not exist.
@@ -1043,15 +1014,9 @@ ZEND_FUNCTION(get_object_vars)
 	uint prop_len;
 	zend_object *zobj;
 
-#ifndef FAST_ZPP
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "o", &obj) == FAILURE) {
+	zend_parse_parameters_new(Z_PARAM_OBJECT(obj), {
 		return;
-	}
-#else
-	ZEND_PARSE_PARAMETERS_START(1, 1)
-		Z_PARAM_OBJECT(obj)
-	ZEND_PARSE_PARAMETERS_END();
-#endif
+	})
 
 	if (Z_OBJ_HT_P(obj)->get_properties == NULL) {
 		RETURN_FALSE;
@@ -1164,18 +1129,12 @@ ZEND_FUNCTION(method_exists)
 	zval *klass; 
 	zend_string *method_name;
 	zend_string *lcname;
-	zend_class_entry * ce;
+	zend_class_entry *ce;
 
-#ifndef FAST_ZPP
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "zS", &klass, &method_name) == FAILURE) {
+	zend_parse_parameters_new(Z_PARAM_ZVAL(klass) Z_PARAM_STR(method_name), {
 		return;
-	}
-#else
-	ZEND_PARSE_PARAMETERS_START(2, 2)
-		Z_PARAM_ZVAL(klass)
-		Z_PARAM_STR(method_name)
-	ZEND_PARSE_PARAMETERS_END();
-#endif
+	})
+
 	if (Z_TYPE_P(klass) == IS_OBJECT) {
 		ce = Z_OBJCE_P(klass);
 	} else if (Z_TYPE_P(klass) == IS_STRING) {
@@ -1276,17 +1235,9 @@ ZEND_FUNCTION(class_exists)
 	zend_class_entry *ce;
 	zend_bool autoload = 1;
 
-#ifndef FAST_ZPP
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "S|b", &class_name, &autoload) == FAILURE) {
+	zend_parse_parameters_new(Z_PARAM_STR(class_name) Z_OPTIONAL Z_PARAM_BOOL(autoload), {
 		return;
-	}
-#else
-	ZEND_PARSE_PARAMETERS_START(1, 2)
-		Z_PARAM_STR(class_name)
-		Z_PARAM_OPTIONAL
-		Z_PARAM_BOOL(autoload)
-	ZEND_PARSE_PARAMETERS_END();
-#endif
+	})
 
 	if (!autoload) {
 		if (class_name->val[0] == '\\') {
@@ -1319,17 +1270,9 @@ ZEND_FUNCTION(interface_exists)
 	zend_class_entry *ce;
 	zend_bool autoload = 1;
 
-#ifndef FAST_ZPP
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "S|b", &iface_name, &autoload) == FAILURE) {
+	zend_parse_parameters_new(Z_PARAM_STR(iface_name) Z_OPTIONAL Z_PARAM_BOOL(autoload), {
 		return;
-	}
-#else
-	ZEND_PARSE_PARAMETERS_START(1, 2)
-		Z_PARAM_STR(iface_name)
-		Z_PARAM_OPTIONAL
-		Z_PARAM_BOOL(autoload)
-	ZEND_PARSE_PARAMETERS_END();
-#endif
+	})
 
 	if (!autoload) {
 		if (iface_name->val[0] == '\\') {
@@ -1362,17 +1305,9 @@ ZEND_FUNCTION(trait_exists)
 	zend_class_entry *ce;
 	zend_bool autoload = 1;
   
-#ifndef FAST_ZPP
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "S|b", &trait_name, &autoload) == FAILURE) {
+	zend_parse_parameters_new(Z_PARAM_STR(trait_name) Z_OPTIONAL Z_PARAM_BOOL(autoload), {
 		return;
-	}
-#else
-	ZEND_PARSE_PARAMETERS_START(1, 2)
-		Z_PARAM_STR(trait_name)
-		Z_PARAM_OPTIONAL
-		Z_PARAM_BOOL(autoload)
-	ZEND_PARSE_PARAMETERS_END();
-#endif
+	})
   
 	if (!autoload) {
 		if (trait_name->val[0] == '\\') {
@@ -1407,15 +1342,9 @@ ZEND_FUNCTION(function_exists)
 	zend_function *func;
 	zend_string *lcname;
 	
-#ifndef FAST_ZPP
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &name, &name_len) == FAILURE) {
+	zend_parse_parameters_new(Z_PARAM_STRING(name, name_len), {
 		return;
-	}
-#else
-	ZEND_PARSE_PARAMETERS_START(1, 1)
-		Z_PARAM_STRING(name, name_len)
-	ZEND_PARSE_PARAMETERS_END();
-#endif
+	})
 
 	if (name[0] == '\\') {
 		/* Ignore leading "\" */
