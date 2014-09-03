@@ -318,41 +318,6 @@ ZEND_API void zend_wrong_paramers_count_error(int num_args, int min_num_args, in
 }
 /* }}} */
 
-ZEND_API void zend_wrong_paramer_type_error(int num, zend_expected_type expected_type, zval *arg TSRMLS_DC) /* {{{ */
-{
-	const char *space;
-	const char *class_name = get_active_class_name(&space TSRMLS_CC);
-	static const char * const expected_error[] = {
-		Z_EXPECTED_TYPES(Z_EXPECTED_TYPE_STR)
-		NULL
-	};
-
-	zend_error(E_WARNING, "%s%s%s() expects parameter %d to be %s, %s given",
-		class_name, space, get_active_function_name(TSRMLS_C), num, expected_error[expected_type], zend_zval_type_name(arg));
-}
-/* }}} */
-
-ZEND_API void zend_wrong_paramer_class_error(int num, char *name, zval *arg TSRMLS_DC) /* {{{ */
-{
-	const char *space;
-	const char *class_name = get_active_class_name(&space TSRMLS_CC);
-
-	zend_error(E_WARNING, "%s%s%s() expects parameter %d to be %s, %s given",
-		class_name, space, get_active_function_name(TSRMLS_C), num, name, zend_zval_type_name(arg));
-}
-/* }}} */
-
-ZEND_API void zend_wrong_callback_error(int severity, int num, char *error TSRMLS_DC) /* {{{ */
-{
-	const char *space;
-	const char *class_name = get_active_class_name(&space TSRMLS_CC);
-
-	zend_error(severity, "%s%s%s() expects parameter %d to be a valid callback, %s",
-		class_name, space, get_active_function_name(TSRMLS_C), num, error);
-	efree(error);
-}
-/* }}} */
-
 ZEND_API int _z_param_class(zval *arg, zend_class_entry **pce, int num, int check_null TSRMLS_DC) /* {{{ */
 {
 	zend_class_entry *ce_base = *pce;
@@ -366,7 +331,7 @@ ZEND_API int _z_param_class(zval *arg, zend_class_entry **pce, int num, int chec
 	if (ce_base) {
 		if ((!*pce || !instanceof_function(*pce, ce_base TSRMLS_CC))) {
 			const char *space;
-			const char *class_name = get_active_class_name(&space TSRMLS_CC);
+ZPP_WRONG_ARG(			const char *class_name = get_active_class_name(&space TSRMLS_CC);
 
 			zend_error(E_WARNING, "%s%s%s() expects parameter %d to be a class name derived from %s, '%s' given",
 				class_name, space, get_active_function_name(TSRMLS_C), num,
@@ -387,6 +352,504 @@ ZEND_API int _z_param_class(zval *arg, zend_class_entry **pce, int num, int chec
 	return 1;
 }
 /* }}} */
+
+#endif
+
+ZEND_API void zend_parse_parameters_wrong_type(int num, const char *expected, zval *arg TSRMLS_DC) /* {{{ */
+{
+	const char *space;
+	const char *class_name = get_active_class_name(&space TSRMLS_CC);
+
+	zend_error(E_WARNING, "%s%s%s() expects parameter %d to be %s, %s given", class_name, space, get_active_function_name(TSRMLS_C), num, expected, zend_zval_type_name(arg));
+}
+/* }}} */
+
+ZEND_API void zend_parse_parameters_wrong_class(int num, zval *arg TSRMLS_DC) /* {{{ */
+{
+	const char *space;
+	const char *class_name = get_active_class_name(&space TSRMLS_CC);
+
+	zend_error(E_WARNING, "%s%s%s() expects parameter %d to be a valid class name, '%s' given", class_name, space, get_active_function_name(TSRMLS_C), num, Z_STRVAL_P(arg));
+}
+/* }}} */
+
+ZEND_API void zend_parse_parameters_wrong_class_base(int num, const char *expected, zval *arg TSRMLS_DC) /* {{{ */
+{
+	const char *space;
+	const char *class_name = get_active_class_name(&space TSRMLS_CC);
+
+	zend_error(E_WARNING, "%s%s%s() expects parameter %d to be a class name derived from %s, '%s' given", class_name, space, get_active_function_name(TSRMLS_C), num, expected, Z_STRVAL_P(arg));
+}
+/* }}} */
+
+ZEND_API void zend_parse_parameters_wrong_callback(int severity, int num, char *error TSRMLS_DC) /* {{{ */
+{
+	const char *space;
+	const char *class_name = get_active_class_name(&space TSRMLS_CC);
+
+	zend_error(severity, "%s%s%s() expects parameter %d to be a valid callback, %s", class_name, space, get_active_function_name(TSRMLS_C), num, error);
+}
+/* }}} */
+
+#if ! FAST_ZPP
+
+#define ZPP_WRONG_TYPE(fcall) \
+	if (!quiet) { \
+		fcall; \
+	} \
+	return FAILURE;
+
+
+#define ZPP_WRONG_ARG(expected) ZPP_WRONG_TYPE(zend_parse_parameters_wrong_type(argnum, expected, arg TSRMLS_CC))
+
+#define ZPP_WRONG_CLASS() ZPP_WRONG_TYPE(zend_parse_parameters_wrong_class(argnum, arg TSRMLS_CC))
+
+#define ZPP_WRONG_CLASS_BASE(expected) ZPP_WRONG_TYPE(zend_parse_parameters_wrong_class_base(argnum, expected, arg TSRMLS_CC))
+
+#define ZPP_WRONG_CALLBACK(severity, error) ZPP_WRONG_TYPE(zend_parse_parameters_wrong_callback(severity, argnum, error TSRMLS_CC))
+
+
+static int zend_parse_single_arg(const int quiet, const int flags, const int argnum, zval *arg, va_list *va TSRMLS_CC) {
+	const int do_checknull = flags & Z_PARAM_CHECKNULL;
+
+	ZVAL_DEREF(arg);
+	if ((flags & Z_PARAM_BY_REF) && !(flags & Z_PARAM_IS_ZVAL)) {
+		SEPARATE_ZVAL(arg);
+	}
+
+
+	switch (flags & Z_PARAM_TYPE_MASK) {
+		case IS_LONG:
+			{
+				long *p = va_arg(*va, long *);
+
+				if (do_checknull) {
+					zend_bool *p = va_arg(*va, zend_bool *);
+					*p = (Z_TYPE_P(arg) == IS_NULL);
+				}
+
+				switch (Z_TYPE_P(arg)) {
+					case IS_STRING:
+						{
+							double d;
+							int type;
+
+							if ((type = is_numeric_string(Z_STRVAL_P(arg), Z_STRLEN_P(arg), p, &d, -1)) == 0) {
+								 ZPP_WRONG_ARG("long")
+							} else if (type == IS_DOUBLE) {
+								if (d > LONG_MAX) {
+									*p = LONG_MAX;
+									break;
+								} else if (d < LONG_MIN) {
+									*p = LONG_MIN;
+									break;
+								}
+
+								*p = zend_dval_to_lval(d);
+							}
+						}
+						break;
+
+					case IS_DOUBLE:
+						if (Z_DVAL_P(arg) > LONG_MAX) {
+							*p = LONG_MAX;
+							break;
+						} else if (Z_DVAL_P(arg) < LONG_MIN) {
+							*p = LONG_MIN;
+							break;
+						}
+					case IS_NULL:
+					case IS_FALSE:
+					case IS_TRUE:
+					case IS_LONG:
+						convert_to_long_ex(arg);
+						*p = Z_LVAL_P(arg);
+						break;
+
+					case IS_ARRAY:
+					case IS_OBJECT:
+					case IS_RESOURCE:
+					default:
+						ZPP_WRONG_ARG("long")
+				}
+			}
+			break;
+
+		case IS_DOUBLE:
+			{
+				double *p = va_arg(*va, double *);
+
+				if (do_checknull) {
+					zend_bool *p = va_arg(*va, zend_bool *);
+					*p = (Z_TYPE_P(arg) == IS_NULL);
+				}
+
+				switch (Z_TYPE_P(arg)) {
+					case IS_STRING:
+						{
+							long l;
+							int type;
+
+							if ((type = is_numeric_string(Z_STRVAL_P(arg), Z_STRLEN_P(arg), &l, p, -1)) == 0) {
+								ZPP_WRONG_ARG("double")
+							} else if (type == IS_LONG) {
+								*p = (double) l;
+							}
+						}
+						break;
+
+					case IS_NULL:
+					case IS_FALSE:
+					case IS_TRUE:
+					case IS_LONG:
+					case IS_DOUBLE:
+						convert_to_double_ex(arg);
+						*p = Z_DVAL_P(arg);
+						break;
+
+					case IS_ARRAY:
+					case IS_OBJECT:
+					case IS_RESOURCE:
+					default:
+						ZPP_WRONG_ARG("double")
+				}
+			}
+			break;
+
+		case IS_STRING:
+		case Z_PARAM_IS_PATH:
+			{
+				char **p = va_arg(*va, char **);
+				int *pl = va_arg(*va, int *);
+				switch (Z_TYPE_P(arg)) {
+					case IS_NULL:
+						if (do_checknull) {
+							*p = NULL;
+							*pl = 0;
+							break;
+						}
+						/* break omitted intentionally */
+
+					case IS_LONG:
+					case IS_DOUBLE:
+					case IS_FALSE:
+					case IS_TRUE:
+						convert_to_string_ex(arg);
+					case IS_STRING:
+						*p = Z_STRVAL_P(arg);
+						*pl = Z_STRLEN_P(arg);
+						if ((flags & Z_PARAM_TYPE_MASK) == Z_PARAM_IS_PATH && CHECK_ZVAL_NULL_PATH(arg)) {
+							ZPP_WRONG_ARG("a valid path")
+						}
+						break;
+
+					case IS_OBJECT:
+						if (parse_arg_object_to_string(arg, p, pl, IS_STRING TSRMLS_CC) == SUCCESS) {
+							if ((flags & Z_PARAM_TYPE_MASK) == Z_PARAM_IS_PATH && CHECK_ZVAL_NULL_PATH(arg)) {
+								ZPP_WRONG_ARG("a valid path")
+							}
+							break;
+						}
+
+					case IS_ARRAY:
+					case IS_RESOURCE:
+					default:
+						ZPP_WRONG_ARG((flags & Z_PARAM_TYPE_MASK) == IS_STRING ? "string" : "a valid path")
+				}
+			}
+			break;
+
+		case Z_PARAM_IS_STR:
+		case Z_PARAM_IS_Z_PATH:
+			{
+				zend_string **str = va_arg(*va, zend_string **);
+				switch (Z_TYPE_P(arg)) {
+					case IS_NULL:
+						if (do_checknull) {
+							*str = NULL;
+							break;
+						}
+						/* break omitted intentionally */
+
+					case IS_LONG:
+					case IS_DOUBLE:
+					case IS_FALSE:
+					case IS_TRUE:
+						convert_to_string_ex(arg);
+					case IS_STRING:
+						*str = Z_STR_P(arg);
+						if ((flags & Z_PARAM_TYPE_MASK) == Z_PARAM_IS_Z_PATH && CHECK_ZVAL_NULL_PATH(arg)) {
+							ZPP_WRONG_ARG("a valid path")
+						}
+						break;
+
+					case IS_OBJECT: {
+						if (parse_arg_object_to_str(arg, str, IS_STRING TSRMLS_CC) == SUCCESS) {
+							if ((flags & Z_PARAM_TYPE_MASK) == Z_PARAM_IS_Z_PATH && CHECK_ZVAL_NULL_PATH(arg)) {
+								ZPP_WRONG_ARG("a valid path")
+							}
+							break;
+						}
+					}
+					case IS_ARRAY:
+					case IS_RESOURCE:
+					default:
+						ZPP_WRONG_ARG((flags & Z_PARAM_TYPE_MASK) == Z_PARAM_IS_STR ? "string" : "a valid path")
+				}
+			}
+			break;
+
+		case _IS_BOOL:
+			{
+				zend_bool *p = va_arg(*va, zend_bool *);
+
+				if (do_checknull) {
+					zend_bool *p = va_arg(*va, zend_bool *);
+					*p = (Z_TYPE_P(arg) == IS_NULL);
+				}
+
+				switch (Z_TYPE_P(arg)) {
+					case IS_NULL:
+					case IS_STRING:
+					case IS_LONG:
+					case IS_DOUBLE:
+					case IS_FALSE:
+					case IS_TRUE:
+						convert_to_boolean_ex(arg);
+						*p = Z_TYPE_P(arg) == IS_TRUE;
+						break;
+
+					case IS_ARRAY:
+					case IS_OBJECT:
+					case IS_RESOURCE:
+					default:
+						ZPP_WRONG_ARG("boolean")
+				}
+			}
+			break;
+
+		case IS_RESOURCE:
+			{
+				zval **p = va_arg(*va, zval **);
+				if (do_checknull && Z_TYPE_P(arg) == IS_NULL) {
+					*p = NULL;
+					break;
+				}
+				if (Z_TYPE_P(arg) == IS_RESOURCE) {
+					*p = arg;
+				} else {
+					ZPP_WRONG_ARG("resource")
+				}
+			}
+			break;
+
+		case IS_ARRAY:
+		case Z_PARAM_IS_ARRAY_OR_OBJECT:
+			{
+				zval **p = va_arg(*va, zval **);
+				if (do_checknull && Z_TYPE_P(arg) == IS_NULL) {
+					*p = NULL;
+					break;
+				}
+				if (Z_TYPE_P(arg) == IS_ARRAY || ((flags & Z_PARAM_TYPE_MASK) == Z_PARAM_IS_ARRAY_OR_OBJECT && Z_TYPE_P(arg) == IS_OBJECT)) {
+					*p = arg;
+				} else {
+					ZPP_WRONG_ARG("array")
+				}
+			}
+			break;
+
+		case Z_PARAM_IS_HT:
+		case Z_PARAM_IS_HT_OR_OBJECT:
+			{
+				HashTable **p = va_arg(*va, HashTable **);
+				if (do_checknull && Z_TYPE_P(arg) == IS_NULL) {
+					*p = NULL;
+					break;
+				}
+				if (Z_TYPE_P(arg) == IS_ARRAY) {
+					*p = Z_ARRVAL_P(arg);
+				} else if ((flags & Z_PARAM_TYPE_MASK) == Z_PARAM_IS_HT_OR_OBJECT && Z_TYPE_P(arg) == IS_OBJECT) {
+					*p = HASH_OF(arg);
+					if(*p == NULL) {
+						ZPP_WRONG_ARG("array")
+					}
+				} else {
+					ZPP_WRONG_ARG("array")
+				}
+			}
+			break;
+
+		case IS_OBJECT:
+			{
+				zval **p = va_arg(*va, zval **);
+				if (do_checknull && Z_TYPE_P(arg) == IS_NULL) {
+					*p = NULL;
+					break;
+				}
+				if (Z_TYPE_P(arg) == IS_OBJECT) {
+					*p = arg;
+				} else {
+					ZPP_WRONG_ARG("object")
+				}
+			}
+			break;
+
+		case Z_PARAM_IS_OBJECT_OF_CLASS:
+			{
+				zval **p = va_arg(*va, zval **);
+				zend_class_entry *ce = va_arg(*va, zend_class_entry *);
+
+				if (do_checknull && Z_TYPE_P(arg) == IS_NULL) {
+					*p = NULL;
+					break;
+				}
+				if (Z_TYPE_P(arg) == IS_OBJECT && (!ce || instanceof_function(Z_OBJCE_P(arg), ce TSRMLS_CC))) {
+					*p = arg;
+				} else {
+					if (ce) {
+						ZPP_WRONG_ARG(ce->name->val)
+					} else {
+						ZPP_WRONG_ARG("object")
+					}
+				}
+			}
+			break;
+
+		case Z_PARAM_IS_CLASS:
+			{
+				zend_class_entry *lookup, **pce = va_arg(*va, zend_class_entry **);
+				zend_class_entry *ce_base = *pce;
+
+				if (do_checknull && Z_TYPE_P(arg) == IS_NULL) {
+					*pce = NULL;
+					break;
+				}
+				convert_to_string_ex(arg);
+				if ((lookup = zend_lookup_class(Z_STR_P(arg) TSRMLS_CC)) == NULL) {
+					*pce = NULL;
+				} else {
+					*pce = lookup;
+				}
+				if (ce_base) {
+					if ((!*pce || !instanceof_function(*pce, ce_base TSRMLS_CC))) {
+						*pce = NULL;
+						ZPP_WRONG_CLASS_BASE(ce_base->name->val);
+					}
+				}
+				if (!*pce) {
+					ZPP_WRONG_CLASS()
+				}
+				break;
+
+			}
+			break;
+
+		case Z_PARAM_IS_FCALL_INFO:
+			{
+				zend_fcall_info *fci = va_arg(*va, zend_fcall_info *);
+				zend_fcall_info_cache *fcc = va_arg(*va, zend_fcall_info_cache *);
+				char *is_callable_error = NULL;
+
+				if (do_checknull && Z_TYPE_P(arg) == IS_NULL) {
+					fci->size = 0;
+					fcc->initialized = 0;
+					break;
+				}
+
+				if (zend_fcall_info_init(arg, 0, fci, fcc, NULL, &is_callable_error TSRMLS_CC) == SUCCESS) {
+					if (is_callable_error) {
+						ZPP_WRONG_CALLBACK(E_STRICT, is_callable_error)
+					}
+					break;
+				} else {
+					if (is_callable_error) {
+						ZPP_WRONG_CALLBACK(E_WARNING, is_callable_error)
+					} else {
+						ZPP_WRONG_ARG("valid callback")
+					}
+				}
+			}
+
+		case Z_PARAM_IS_ZVAL:
+			{
+				zval **p = va_arg(*va, zval **);
+				if (do_checknull && Z_TYPE_P(arg) == IS_NULL) {
+					*p = NULL;
+				} else {
+					*p = arg;
+				}
+			}
+			break;
+	}
+
+	return SUCCESS;
+}
+
+ZEND_API int zend_parse_parameters_function(const int general_flags, int num_args TSRMLS_DC, ...) {
+	va_list va;
+	int ret = SUCCESS;
+	const int quiet = general_flags & ZEND_PARSE_PARAMS_QUIET;
+	int max_num_args = 0;
+	zend_bool in_optional = 0;
+	unsigned int min_num_args = 0;
+
+	zval *zv;
+
+#ifdef ZTS
+	va_start(va, tsrm_ls);
+#else
+	va_start(va, num_args);
+#endif
+
+	while (1) {
+		const int flags = va_arg(va, int);
+
+		if ((flags & Z_PARAM_TYPE_MASK) == Z_PARAM_TYPE_MASK) {
+			if (flags == 0xffffffff) {
+				if (num_args > max_num_args) {
+					// Too many args
+				}
+				break;
+			} else if (flags == 0xefffffff) {
+				in_optional = 1;
+				min_num_args = max_num_args;
+			}
+			continue;
+		}
+
+		if (!in_optional && max_num_args >= num_args) {
+			// Not enough args
+			break;
+		}
+
+		zv = ((zval *) EG(current_execute_data)) + (ZEND_CALL_FRAME_SLOT) + max_num_args;
+
+		if (flags & Z_PARAM_IS_VARIADIC) {
+			zval **args = va_arg(va, zval **);
+			int *argc = va_arg(va, int *);
+
+			if (!in_optional && max_num_args + (flags & Z_PARAM_TYPE_MASK) > num_args) {
+				// Not enough args
+			}
+
+			*argc = num_args - max_num_args;
+			*args = zv;
+
+			break; /* supposing the variadics to be last... */
+		}
+
+		/* normal arg parsing */
+		if (zend_parse_single_arg(quiet, flags, max_num_args, zv, &va TSRMLS_CC) == FAILURE) {
+			ret = FAILURE;
+		}
+
+		max_num_args++;
+	}
+
+	va_end(va);
+	return ret;
+}
 
 #endif
 

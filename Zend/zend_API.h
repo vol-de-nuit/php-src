@@ -261,10 +261,15 @@ ZEND_API int zend_parse_parameter(int flags, int arg_num TSRMLS_DC, zval *arg, c
 
 /* New parameter parsing API -- Bob */
 
+#define FAST_ZPP 0
+
+
+#define Z_PARAM_BY_REF			(1 << 24)
+
+#if FAST_ZPP
+
 ZEND_API int parse_arg_object_to_string(zval *arg, char **p, int *pl, int type TSRMLS_DC);
 ZEND_API int parse_arg_object_to_str(zval *arg, zend_string **str, int type TSRMLS_DC);
-
-	#define Z_PARAM_BY_REF			(1 << 0)
 
 #define Z_PARAM_REF_CHECK(ref) \
 	if (UNEXPECTED(_i >= _num_args)) { \
@@ -312,11 +317,27 @@ static inline void zend_parse_parameters_arg_count_error(int i, int num_args, in
 		num_args);
 }
 
-#define GOTO_ZEND_PARSE_PARAMS_WRONG_ARG \
+ZEND_API void zend_parse_parameters_wrong_type(int num, const char *expected, zval *arg TSRMLS_DC);
+ZEND_API void zend_parse_parameters_wrong_class(int num, zval *arg TSRMLS_DC);
+ZEND_API void zend_parse_parameters_wrong_class_base(int num, const char *expected, zval *arg TSRMLS_DC);
+ZEND_API void zend_parse_parameters_wrong_callback(int severity, int num, char *error TSRMLS_DC);
+
+#define GOTO_ZEND_PARSE_PARAMS_WRONG_TYPE(fcall) \
 	if (!(_flags & ZEND_PARSE_PARAMS_QUIET)) { \
-		zend_parse_parameters_wrong_arg(_args, _i, _error_type TSRMLS_CC); \
+		fcall; \
 	} \
+	_has_arg_error |= 2; \
 	break;
+
+
+#define GOTO_ZEND_PARSE_PARAMS_WRONG_ARG(expected) GOTO_ZEND_PARSE_PARAMS_WRONG_TYPE(zend_parse_parameters_wrong_type(_i, expected, _args TSRMLS_CC))
+
+#define GOTO_ZEND_PARSE_PARAMS_WRONG_CLASS() GOTO_ZEND_PARSE_PARAMS_WRONG_TYPE(zend_parse_parameters_wrong_class(_i, _args TSRMLS_CC))
+
+#define GOTO_ZEND_PARSE_PARAMS_WRONG_CLASS_BASE(expected) GOTO_ZEND_PARSE_PARAMS_WRONG_TYPE(zend_parse_parameters_wrong_class_base(_i, expected, _args TSRMLS_CC))
+
+#define GOTO_ZEND_PARSE_PARAMS_WRONG_CALLBACK(severity, error) GOTO_ZEND_PARSE_PARAMS_WRONG_TYPE(zend_parse_parameters_wrong_callback(severity, _i, error TSRMLS_CC))
+
 
 static inline void zend_parse_parameters_wrong_arg(zval *args, int i, char *error_type TSRMLS_DC) {
 	const char *space;
@@ -326,7 +347,7 @@ static inline void zend_parse_parameters_wrong_arg(zval *args, int i, char *erro
 		class_name, space, get_active_function_name(TSRMLS_C), i, error_type, zend_zval_type_name(args + i - 1));
 }
 
-#define zend_parse_parameters_new_ex(flgs, params, failure) \
+#define zend_parse_parameters_new_ex(flags, params, failure) \
 { \
 	zval *_args = ((zval *) EG(current_execute_data)) + (ZEND_CALL_FRAME_SLOT); \
 	zval *_arg; \
@@ -334,8 +355,7 @@ static inline void zend_parse_parameters_wrong_arg(zval *args, int i, char *erro
 	int _num_args = ZEND_NUM_ARGS(); \
 	int _min_num_args = -1; \
 	int _max_num_args = -1; \
-	const int _flags = flgs; \
-	char *_error_type = NULL; \
+	const int _flags = flags; \
 	zend_bool _checknull_dummy = 0; \
 	int _has_arg_error = 0; \
 \
@@ -345,8 +365,8 @@ static inline void zend_parse_parameters_wrong_arg(zval *args, int i, char *erro
 		_has_arg_error |= 1; \
 	} \
 \
-	if (UNEXPECTED(_error_type != NULL) || UNEXPECTED(_has_arg_error == 1)) { \
-		if (_has_arg_error) { \
+	if (UNEXPECTED(_has_arg_error > 0)) { \
+		if (_has_arg_error & 1) { \
 			GOTO_ZEND_PARSE_PARAMS_ARG_COUNT_ERROR \
 		} \
 \
@@ -370,7 +390,7 @@ static inline void zend_parse_parameters_wrong_arg(zval *args, int i, char *erro
 #define _Z_PARAM_LONG(lvalue, checknull, start) _Z_PARAM(checknull, start, \
 	if (EXPECTED(Z_TYPE_P(_arg) == IS_LONG)) { \
 		lvalue = Z_LVAL_P(_arg); \
-	} else if (EXPECTED((Z_TYPE_P(_arg) == IS_DOUBLE)) { \
+	} else if (EXPECTED(Z_TYPE_P(_arg) == IS_DOUBLE)) { \
 		if (Z_DVAL_P(_arg) > LONG_MAX) { \
 			lvalue = LONG_MAX; \
 		} else if (Z_DVAL_P(_arg) < LONG_MIN) { \
@@ -384,8 +404,7 @@ static inline void zend_parse_parameters_wrong_arg(zval *args, int i, char *erro
 \
 		if (UNEXPECTED((_subtype = is_numeric_string(Z_STRVAL_P(_arg), Z_STRLEN_P(_arg), &Z_LVAL_P(_arg), &_d, -1)) == 0)) { \
 			lvalue = 0; \
-			_error_type = "long"; \
-			GOTO_ZEND_PARSE_PARAMS_WRONG_ARG \
+			GOTO_ZEND_PARSE_PARAMS_WRONG_ARG("long") \
 		} else if (_subtype == IS_DOUBLE) { \
 			if (_d > LONG_MAX) { \
 				lvalue = LONG_MAX; \
@@ -398,8 +417,7 @@ static inline void zend_parse_parameters_wrong_arg(zval *args, int i, char *erro
 	} else if (Z_TYPE_P(_arg) <= IS_TRUE && Z_TYPE_P(_arg) >= IS_NULL) { \
 		lvalue = (Z_TYPE_P(_arg) == IS_TRUE); \
 	} else { \
-		_error_type = "long"; \
-		GOTO_ZEND_PARSE_PARAMS_WRONG_ARG \
+		GOTO_ZEND_PARSE_PARAMS_WRONG_ARG("long") \
 	} \
 )
 
@@ -413,16 +431,14 @@ static inline void zend_parse_parameters_wrong_arg(zval *args, int i, char *erro
 		int _subtype; \
 \
 		if (UNEXPECTED((_subtype = is_numeric_string(Z_STRVAL_P(_arg), Z_STRLEN_P(_arg), &_l, &Z_DVAL_P(_arg), -1)) == 0)) { \
-			_error_type = "double"; \
-			GOTO_ZEND_PARSE_PARAMS_WRONG_ARG \
+			GOTO_ZEND_PARSE_PARAMS_WRONG_ARG("double") \
 		} else if (_subtype == IS_LONG) { \
 			lvalue = (double) _l; \
 		} \
 	} else if (Z_TYPE_P(_arg) <= IS_TRUE && Z_TYPE_P(_arg) >= IS_NULL) { \
 		lvalue = (double) (Z_TYPE_P(_arg) == IS_TRUE); \
 	} else { \
-		_error_type = "double"; \
-		GOTO_ZEND_PARSE_PARAMS_WRONG_ARG \
+		GOTO_ZEND_PARSE_PARAMS_WRONG_ARG("double") \
 	} \
 )
 
@@ -436,8 +452,7 @@ static inline void zend_parse_parameters_wrong_arg(zval *args, int i, char *erro
 		len = Z_STRLEN_P(_arg); \
 		if (pathcheck) { \
 			if (UNEXPECTED(CHECK_ZVAL_NULL_PATH(_arg))) { \
-				_error_type = "a valid path"; \
-				GOTO_ZEND_PARSE_PARAMS_WRONG_ARG \
+				GOTO_ZEND_PARSE_PARAMS_WRONG_ARG("a valid path") \
 			} \
 		} \
 	} else if (Z_TYPE_P(_arg) == IS_LONG || Z_TYPE_P(_arg) == IS_DOUBLE) { \
@@ -446,7 +461,7 @@ static inline void zend_parse_parameters_wrong_arg(zval *args, int i, char *erro
 		len = Z_STRLEN_P(_arg); \
 	} else if (Z_TYPE_P(_arg) == IS_NULL || Z_TYPE_P(_arg) == IS_FALSE) { \
 		len = 0; \
-		if (checknull && Z_TYPE_P(_arg) == IS_NULL) { \
+		if (checknull) { \
 			str = NULL; \
 		} else { \
 			str = emalloc(sizeof(char)); \
@@ -457,8 +472,7 @@ static inline void zend_parse_parameters_wrong_arg(zval *args, int i, char *erro
 		str = emalloc(2); \
 		*(int16_t *)str = '1' << 8; \
 	} else if (Z_TYPE_P(_arg) != IS_OBJECT || parse_arg_object_to_string(_arg, &(str), &(len), IS_STRING TSRMLS_CC) == FAILURE || (pathcheck && UNEXPECTED(CHECK_ZVAL_NULL_PATH(_arg)))) { \
-		_error_type = pathcheck ? "a valid path" : "string"; \
-		GOTO_ZEND_PARSE_PARAMS_WRONG_ARG \
+		GOTO_ZEND_PARSE_PARAMS_WRONG_ARG(pathcheck ? "a valid path" : "string") \
 	} \
 )
 
@@ -475,15 +489,14 @@ static inline void zend_parse_parameters_wrong_arg(zval *args, int i, char *erro
 		lvalue = Z_STR_P(_arg); \
 		if (pathcheck) { \
 			if (UNEXPECTED(CHECK_ZVAL_NULL_PATH(_arg))) { \
-				_error_type = "a valid path"; \
-				GOTO_ZEND_PARSE_PARAMS_WRONG_ARG \
+				GOTO_ZEND_PARSE_PARAMS_WRONG_ARG("a valid path") \
 			} \
 		} \
 	} else if (Z_TYPE_P(_arg) == IS_LONG || Z_TYPE_P(_arg) == IS_DOUBLE) { \
 		convert_to_string_ex(_arg); \
 		lvalue = Z_STR_P(_arg); \
 	} else if (Z_TYPE_P(_arg) == IS_NULL || Z_TYPE_P(_arg) == IS_FALSE) { \
-		if (checknull && Z_TYPE_P(_arg) == IS_NULL) { \
+		if (checknull) { \
 			lvalue = NULL; \
 		} else { \
 			lvalue = emalloc(sizeof(zend_string)); \
@@ -495,8 +508,7 @@ static inline void zend_parse_parameters_wrong_arg(zval *args, int i, char *erro
 		lvalue.len = 1; \
 		*(int16_t *)lvalue.val = '1' << 8; \
 	} elseif (Z_TYPE_P(_arg) != IS_OBJECT || parse_arg_object_to_string(_arg, &(str), &(len), IS_STRING TSRMLS_CC) == FAILURE || (pathcheck && UNEXPECTED(CHECK_ZVAL_NULL_PATH(_arg)))) { \
-		_error_type = pathcheck ? "a valid path" : "string"; \
-		GOTO_ZEND_PARSE_PARAMS_WRONG_ARG \
+		GOTO_ZEND_PARSE_PARAMS_WRONG_ARG(pathcheck ? "a valid path" : "string") \
 	} \
 )
 
@@ -517,23 +529,28 @@ static inline void zend_parse_parameters_wrong_arg(zval *args, int i, char *erro
 			break; \
 \
 		default: \
-			_error_type = "boolean"; \
-			GOTO_ZEND_PARSE_PARAMS_WRONG_ARG \
+			GOTO_ZEND_PARSE_PARAMS_WRONG_ARG("boolean") \
 	} \
 )
 
 #define _Z_PARAM_RESOURCE(lvalue, checknull, start) _Z_PARAM(checknull, start, \
-	if (Z_TYPE_P(_arg) != IS_RESOURCE && (!(checknull) || Z_TYPE_P(_arg) != IS_NULL)) { \
-		_error_type = "resource"; \
-		GOTO_ZEND_PARSE_PARAMS_WRONG_ARG \
+	if (Z_TYPE_P(_arg) != IS_RESOURCE) { \
+		if (checknull) { \
+			lvalue = NULL; \
+			break; \
+		} \
+		GOTO_ZEND_PARSE_PARAMS_WRONG_ARG("resource") \
 	} \
 	lvalue = _arg; \
 )
 
 #define _Z_PARAM_ARRAY_OBJECT(lvalue, object_valid, checknull, start) _Z_PARAM(checknull, start, \
 	if (Z_TYPE_P(_arg) != IS_ARRAY && (!(object_valid) || Z_TYPE_P(_arg) != IS_OBJECT)) { \
-		_error_type = "array"; \
-		GOTO_ZEND_PARSE_PARAMS_WRONG_ARG \
+		if (checknull) { \
+			lvalue = NULL; \
+			break; \
+		} \
+		GOTO_ZEND_PARSE_PARAMS_WRONG_ARG("array") \
 	} \
 	lvalue = _arg; \
 )
@@ -543,7 +560,7 @@ static inline void zend_parse_parameters_wrong_arg(zval *args, int i, char *erro
 #define _Z_PARAM_ARRAY_OR_OBJECT(lvalue, checknull, start) _Z_PARAM_ARRAY_OBJECT(lvalue, 1, checknull, start)
 
 #define _Z_PARAM_HT_OBJECT(lvalue, object_valid, checknull, start) _Z_PARAM(checknull, start, \
-	if (checknull && Z_TYPE_P(_arg) == IS_NULL) { \
+	if (checknull) { \
 		lvalue = NULL; \
 		break; \
 	} \
@@ -552,12 +569,10 @@ static inline void zend_parse_parameters_wrong_arg(zval *args, int i, char *erro
 	} else if (object_valid && Z_TYPE_P(_arg) == IS_OBJECT) { \
 		lvalue = HASH_OF(_arg); \
 		if(lvalue == NULL) { \
-			_error_type = "array"; \
-			GOTO_ZEND_PARSE_PARAMS_WRONG_ARG \
+			GOTO_ZEND_PARSE_PARAMS_WRONG_ARG("array") \
 		} \
 	} else { \
-		_error_type = "array"; \
-		GOTO_ZEND_PARSE_PARAMS_WRONG_ARG \
+		GOTO_ZEND_PARSE_PARAMS_WRONG_ARG("array") \
 	} \
 )
 
@@ -566,21 +581,26 @@ static inline void zend_parse_parameters_wrong_arg(zval *args, int i, char *erro
 #define _Z_PARAM_HT_OR_OBJECT(lvalue, checknull, start) _Z_PARAM_HT_OBJECT(lvalue, 1, checknull, start)
 
 #define _Z_PARAM_OBJECT(lvalue, checknull, start) _Z_PARAM(checknull, start, \
-	if (Z_TYPE_P(_arg) != IS_OBJECT && (!(checknull) && Z_TYPE_P(_arg) != IS_NULL)) { \
-		_error_type = "object"; \
-		GOTO_ZEND_PARSE_PARAMS_WRONG_ARG \
+	if (Z_TYPE_P(_arg) != IS_OBJECT) { \
+		if (checknull) { \
+			lvalue = NULL; \
+			break; \
+		} \
+		GOTO_ZEND_PARSE_PARAMS_WRONG_ARG("object") \
 	} \
 	lvalue = _arg; \
 )
 
 #define _Z_PARAM_OBJECT_OF_CLASS(lvalue, ce, checknull, start) _Z_PARAM(checknull, start, \
-	if (Z_TYPE_P(_arg) != IS_OBJECT && (!(checknull) && Z_TYPE_P(_arg) != IS_NULL)) { \
-		_error_type = "object"; \
-		GOTO_ZEND_PARSE_PARAMS_WRONG_ARG \
+	if (Z_TYPE_P(_arg) != IS_OBJECT) { \
+		if (checknull) { \
+			lvalue = NULL; \
+			break; \
+		} \
+		GOTO_ZEND_PARSE_PARAMS_WRONG_ARG("object") \
 	} \
 	if (ce && !instanceof_function(Z_OBJCE_P(_arg), ce TSRMLS_CC)) { \
-		_error_type = ce->name->val; \
-		GOTO_ZEND_PARSE_PARAMS_WRONG_ARG \
+		GOTO_ZEND_PARSE_PARAMS_WRONG_ARG(ce->name->val) \
 	} \
 	lvalue = _arg; \
 )
@@ -588,7 +608,7 @@ static inline void zend_parse_parameters_wrong_arg(zval *args, int i, char *erro
 #define _Z_PARAM_CLASS(lvalue, checknull, start) _Z_PARAM(checknull, start, { \
 	zend_class_entry *_ce_base = lvalue; \
 \
-	if (checknull && Z_TYPE_P(_arg) == IS_NULL) { \
+	if (checknull) { \
 		lvalue = NULL; \
 		break; \
 	} \
@@ -597,43 +617,33 @@ static inline void zend_parse_parameters_wrong_arg(zval *args, int i, char *erro
 	lvalue = zend_lookup_class(Z_STR_P(_arg) TSRMLS_CC); \
 	if (_ce_base) { \
 		if ((!lvalue || !instanceof_function(lvalue, _ce_base TSRMLS_CC))) { \
-			zend_spprintf(&_error_type, 0, "class name derived from %s, '%s' given", _ce_base->name->val, Z_STRVAL_P(_arg)); \
 			lvalue = NULL; \
-			break; \
+			GOTO_ZEND_PARSE_PARAMS_WRONG_CLASS_BASE(_ce_base->name->val); \
 		} \
-	} \
-\
-	if (!lvalue) { \
-		zend_spprintf(&_error_type, 0, "valid class name, '%s' given", Z_STRVAL_P(_arg)); \
-		break; \
+	} else if (!lvalue) { \
+		GOTO_ZEND_PARSE_PARAMS_WRONG_CLASS() \
 	} \
 })
 
 #define _Z_PARAM_FCALL_INFO(fci, fcc, checknull, start) _Z_PARAM(checknull, start, { \
 	char *_is_callable_error = NULL; \
+	int _fci_success; \
 \
-	if (checknull && Z_TYPE_P(_arg) == IS_NULL) { \
+	if (checknull) { \
 		fci.size = 0; \
 		fcc.initialized = 0; \
 		break; \
 	} \
 \
-	if (zend_fcall_info_init(_arg, 0, &fci, &fcc, NULL, &_is_callable_error TSRMLS_CC) == SUCCESS) { \
-		if (_is_callable_error) { \
-			zend_spprintf(&_error_type, 0, "valid callback, %s", _is_callable_error); \
-			efree(_is_callable_error); \
-			break; \
-		} \
-		break; \
-	} \
+	_fci_success = zend_fcall_info_init(_arg, 0, &fci, &fcc, NULL, &_is_callable_error TSRMLS_CC); \
 \
 	if (_is_callable_error) { \
-		zend_spprintf(&_error_type, 0, "valid callback, %s", _is_callable_error); \
+		do { \
+			GOTO_ZEND_PARSE_PARAMS_WRONG_CALLBACK(_fci_success ? E_STRICT : E_WARNING, _is_callable_error) \
+		} while (0); \
 		efree(_is_callable_error); \
-		break; \
-	} else { \
-		_error_type = "valid callback"; \
-		GOTO_ZEND_PARSE_PARAMS_WRONG_ARG \
+	} else if (_fci_success != SUCCESS) { \
+		GOTO_ZEND_PARSE_PARAMS_WRONG_ARG("a valid callback") \
 	} \
 })
 
@@ -740,6 +750,132 @@ static inline void zend_parse_parameters_wrong_arg(zval *args, int i, char *erro
 #define Z_PARAM_VARIADIC(argc, argv) Z_PARAM_VARIADIC_EX(argc, argv, 0)
 
 #define Z_OPTIONAL _min_num_args = _i;
+
+#else
+
+/* define some fake types after 0xffff */
+#define Z_PARAM_IS_PATH (1 << 16)
+#define Z_PARAM_IS_STR (2 << 16)
+#define Z_PARAM_IS_Z_PATH (3 << 16)
+#define Z_PARAM_IS_ARRAY_OR_OBJECT (4 << 16)
+#define Z_PARAM_IS_HT (5 << 16)
+#define Z_PARAM_IS_HT_OR_OBJECT (6 << 16)
+#define Z_PARAM_IS_OBJECT_OF_CLASS (7 << 16)
+#define Z_PARAM_IS_CLASS (8 << 16)
+#define Z_PARAM_IS_FCALL_INFO (9 << 16)
+#define Z_PARAM_IS_ZVAL (10 << 16)
+
+#define Z_PARAM_TYPE_MASK 0xffffff
+
+
+#define Z_PARAM_CHECKNULL (1 << 25)
+#define Z_PARAM_IS_VARIADIC (1 << 26)
+
+ZEND_API int zend_parse_parameters_function(const int general_flags, int num_args TSRMLS_DC, ...);
+
+/* with 0xffffffff being the sentinel value, 0xefffffff the optional params indicator */
+#define zend_parse_parameters_new_internal(flags, failure, ...) if (zend_parse_parameters_function(flags, ZEND_NUM_ARGS() TSRMLS_CC, __VA_ARGS__ 0xffffffff) == FAILURE) { failure }
+
+#define zend_parse_parameters_new_ex(flags, params, failure) zend_parse_parameters_new_internal(flags, failure, params)
+#define zend_parse_parameters_new(params, failure) zend_parse_parameters_new_internal(0, failure, params)
+
+#define Z_PARAM_FUNCTION_COMMA ,
+
+#define Z_PARAM_CHECKNULL_EX(lvalue, checknull, flags) flags | Z_PARAM_CHECKNULL, lvalue, checknull,
+#define Z_PARAM_EX(lvalue, flags) flags, lvalue,
+//#define Z_PARAM_EX(a, b) 
+
+#define Z_PARAM_LONG_CHECKNULL_EX(lvalue, checknull, flags) Z_PARAM_CHECKNULL_EX(&lvalue, checknull, flags | IS_LONG)
+#define Z_PARAM_LONG_EX(lvalue, flags) Z_PARAM_EX(&lvalue, flags | IS_LONG)
+#define Z_PARAM_LONG_CHECKNULL(lvalue, checknull) Z_PARAM_LONG_CHECKNULL_EX(lvalue, checknull, 0)
+#define Z_PARAM_LONG(lvalue) Z_PARAM_LONG_EX(lvalue, 0)
+
+#define Z_PARAM_DOUBLE_CHECKNULL_EX(lvalue, checknull, flags) Z_PARAM_CHECKNULL_EX(&lvalue, checknull, flags | IS_DOUBLE)
+#define Z_PARAM_DOUBLE_EX(lvalue, flags) Z_PARAM_EX(&lvalue, flags | IS_DOUBLE)
+#define Z_PARAM_DOUBLE_CHECKNULL(lvalue, checknull) Z_PARAM_DOUBLE_CHECKNULL_EX(lvalue, checknull, 0)
+#define Z_PARAM_DOUBLE(lvalue) Z_PARAM_DOUBLE_EX(lvalue, 0)
+
+#define Z_PARAM_STRING_CHECKNULL_EX(str, len, flags) Z_PARAM_EX(&str Z_PARAM_FUNCTION_COMMA &len, flags | Z_PARAM_CHECKNULL | IS_STRING)
+#define Z_PARAM_STRING_EX(str, len, flags) Z_PARAM_EX(&str Z_PARAM_FUNCTION_COMMA &len, flags | IS_STRING)
+#define Z_PARAM_STRING_CHECKNULL(str, len) Z_PARAM_STRING_CHECKNULL_EX(str, len, 0)
+#define Z_PARAM_STRING(str, len) Z_PARAM_STRING_EX(str, len, 0)
+
+#define Z_PARAM_PATH_CHECKNULL_EX(str, len, flags) Z_PARAM_EX(&str Z_PARAM_FUNCTION_COMMA &len, flags | Z_PARAM_CHECKNULL | Z_PARAM_IS_PATH)
+#define Z_PARAM_PATH_EX(str, len, flags) Z_PARAM_EX(&str Z_PARAM_FUNCTION_COMMA &len, flags | Z_PARAM_IS_PATH)
+#define Z_PARAM_PATH_CHECKNULL(str, len) Z_PARAM_PATH_CHECKNULL_EX(str, len, 0)
+#define Z_PARAM_PATH(str, len) Z_PARAM_PATH_EX(str, len, 0)
+
+#define Z_PARAM_STR_CHECKNULL_EX(lvalue, flags) Z_PARAM_EX(&lvalue, flags | Z_PARAM_CHECKNULL | Z_PARAM_IS_STR)
+#define Z_PARAM_STR_EX(lvalue, flags) Z_PARAM_EX(&lvalue, flags | Z_PARAM_IS_STR)
+#define Z_PARAM_STR_CHECKNULL(lvalue) Z_PARAM_STR_CHECKNULL_EX(lvalue, 0)
+#define Z_PARAM_STR(lvalue) Z_PARAM_STR_EX(lvalue, 0)
+
+#define Z_PARAM_Z_PATH_CHECKNULL_EX(lvalue, checknull, flags) Z_PARAM_EX(&lvalue, flags | Z_PARAM_CHECKNULL | IS_PARAM_Z_PATH)
+#define Z_PARAM_Z_PATH_EX(lvalue, flags) Z_PARAM_EX(&lvalue, flags | IS_PARAM_Z_PATH)
+#define Z_PARAM_Z_PATH_CHECKNULL(lvalue, checknull) Z_PARAM_Z_PATH_CHECKNULL_EX(lvalue, checknull, 0)
+#define Z_PARAM_Z_PATH(lvalue) Z_PARAM_Z_PATH_EX(lvalue, 0)
+
+#define Z_PARAM_BOOL_CHECKNULL_EX(lvalue, checknull, flags) Z_PARAM_CHECKNULL_EX(&lvalue, checknull, flags | _IS_BOOL)
+#define Z_PARAM_BOOL_EX(lvalue, flags) Z_PARAM_EX(&lvalue, flags | _IS_BOOL)
+#define Z_PARAM_BOOL_CHECKNULL(lvalue, checknull) Z_PARAM_BOOL_CHECKNULL_EX(lvalue, checknull, 0)
+#define Z_PARAM_BOOL(lvalue) Z_PARAM_BOOL_EX(lvalue, 0)
+
+#define Z_PARAM_RESOURCE_CHECKNULL_EX(lvalue, checknull, flags) Z_PARAM_CHECKNULL_EX(&lvalue, checknull, flags | IS_RESOURCE)
+#define Z_PARAM_RESOURCE_EX(lvalue, flags) Z_PARAM_EX(&lvalue, flags | IS_RESOURCE)
+#define Z_PARAM_RESOURCE_CHECKNULL(lvalue, checknull) Z_PARAM_RESOURCE_CHECKNULL_EX(lvalue, checknull, 0)
+#define Z_PARAM_RESOURCE(lvalue) Z_PARAM_RESOURCE_EX(lvalue, 0)
+
+#define Z_PARAM_ARRAY_CHECKNULL_EX(lvalue, checknull, flags) Z_PARAM_CHECKNULL_EX(&lvalue, checknull, flags | IS_ARRAY)
+#define Z_PARAM_ARRAY_EX(lvalue, flags) Z_PARAM_EX(&lvalue, flags | IS_ARRAY)
+#define Z_PARAM_ARRAY_CHECKNULL(lvalue, checknull) Z_PARAM_ARRAY_CHECKNULL_EX(lvalue, checknull, 0)
+#define Z_PARAM_ARRAY(lvalue) Z_PARAM_ARRAY_EX(lvalue, 0)
+
+#define Z_PARAM_ARRAY_OR_OBJECT_CHECKNULL_EX(lvalue, checknull, flags) Z_PARAM_CHECKNULL_EX(&lvalue, checknull, flags | Z_PARAM_IS_ARRAY_OR_OBJECT)
+#define Z_PARAM_ARRAY_OR_OBJECT_EX(lvalue, flags) Z_PARAM_EX(&lvalue, flags | Z_PARAM_IS_ARRAY_OR_OBJECT)
+#define Z_PARAM_ARRAY_OR_OBJECT_CHECKNULL(lvalue, checknull) Z_PARAM_ARRAY_OR_OBJECT_CHECKNULL_EX(lvalue, checknull, 0)
+#define Z_PARAM_ARRAY_OR_OBJECT(lvalue) Z_PARAM_ARRAY_OR_OBJECT_EX(lvalue, 0)
+
+#define Z_PARAM_HT_CHECKNULL_EX(lvalue, checknull, flags) Z_PARAM_CHECKNULL_EX(&lvalue, checknull, flags | Z_PARAM_IS_HT)
+#define Z_PARAM_HT_EX(lvalue, flags) Z_PARAM_EX(&lvalue, flags | Z_PARAM_IS_HT)
+#define Z_PARAM_HT_CHECKNULL(lvalue, checknull) Z_PARAM_HT_CHECKNULL_EX(lvalue, checknull, 0)
+#define Z_PARAM_HT(lvalue) Z_PARAM_HT_EX(lvalue, 0)
+
+#define Z_PARAM_HT_OR_OBJECT_CHECKNULL_EX(lvalue, checknull, flags) Z_PARAM_CHECKNULL_EX(&lvalue, checknull, flags | Z_PARAM_IS_HT_OR_OBJECT)
+#define Z_PARAM_HT_OR_OBJECT_EX(lvalue, flags) Z_PARAM_EX(&lvalue, flags | Z_PARAM_IS_HT_OR_OBJECT)
+#define Z_PARAM_HT_OR_OBJECT_CHECKNULL(lvalue, checknull) Z_PARAM_HT_OR_OBJECT_CHECKNULL_EX(lvalue, checknull, 0)
+#define Z_PARAM_HT_OR_OBJECT(lvalue) Z_PARAM_HT_OR_OBJECT_EX(lvalue, 0)
+
+#define Z_PARAM_OBJECT_CHECKNULL_EX(lvalue, checknull, flags) Z_PARAM_CHECKNULL_EX(&lvalue, checknull, flags | IS_OBJECT)
+#define Z_PARAM_OBJECT_EX(lvalue, flags) Z_PARAM_EX(&lvalue, flags | IS_OBJECT)
+#define Z_PARAM_OBJECT_CHECKNULL(lvalue, checknull) Z_PARAM_OBJECT_CHECKNULL_EX(lvalue, checknull, 0)
+#define Z_PARAM_OBJECT(lvalue) Z_PARAM_OBJECT_EX(lvalue, 0)
+
+#define Z_PARAM_OBJECT_OF_CLASS_CHECKNULL_EX(lvalue, ce, checknull, flags) Z_PARAM_CHECKNULL_EX(&lvalue Z_PARAM_FUNCTION_COMMA ce, checknull, flags | Z_PARAM_IS_OBJECT_OF_CLASS)
+#define Z_PARAM_OBJECT_OF_CLASS_EX(lvalue, ce, flags) Z_PARAM_EX(&lvalue Z_PARAM_FUNCTION_COMMA ce, flags | Z_PARAM_IS_OBJECT_OF_CLASS)
+#define Z_PARAM_OBJECT_OF_CLASS_CHECKNULL(lvalue, ce, checknull) Z_PARAM_OBJECT_OF_CLASS_CHECKNULL_EX(lvalue, ce, checknull, 0)
+#define Z_PARAM_OBJECT_OF_CLASS(lvalue, ce) Z_PARAM_OBJECT_OF_CLASS_EX(lvalue, ce, 0)
+
+#define Z_PARAM_CLASS_CHECKNULL_EX(lvalue, checknull, flags) Z_PARAM_CHECKNULL_EX(&lvalue, checknull, flags | Z_PARAM_IS_CLASS)
+#define Z_PARAM_CLASS_EX(lvalue, flags) Z_PARAM_EX(&lvalue, flags | Z_PARAM_IS_CLASS)
+#define Z_PARAM_CLASS_CHECKNULL(lvalue, checknull) Z_PARAM_CLASS_CHECKNULL_EX(lvalue, checknull, 0)
+#define Z_PARAM_CLASS(lvalue) Z_PARAM_CLASS_EX(lvalue, 0)
+
+#define Z_PARAM_FCALL_INFO_CHECKNULL_EX(fci, fcc, flags) Z_PARAM_EX(&fci Z_PARAM_FUNCTION_COMMA &fcc, flags | Z_PARAM_CHECKNULL | Z_PARAM_IS_FCALL_INFO)
+#define Z_PARAM_FCALL_INFO_EX(fci, fcc, flags) Z_PARAM_EX(&fci Z_PARAM_FUNCTION_COMMA &fcc, flags | Z_PARAM_IS_FCALL_INFO)
+#define Z_PARAM_FCALL_INFO_CHECKNULL(fci, fcc) Z_PARAM_FCALL_INFO_CHECKNULL_EX(fci, fcc, 0)
+#define Z_PARAM_FCALL_INFO(fci, fcc) Z_PARAM_FCALL_INFO_EX(fci, fcc, 0)
+
+#define Z_PARAM_ZVAL_CHECKNULL_EX(lvalue, checknull, flags) Z_PARAM_CHECKNULL_EX(&lvalue, checknull, flags | Z_PARAM_IS_ZVAL)
+#define Z_PARAM_ZVAL_EX(lvalue, flags) Z_PARAM_EX(&lvalue, flags | Z_PARAM_IS_ZVAL)
+#define Z_PARAM_ZVAL_CHECKNULL(lvalue, checknull) Z_PARAM_ZVAL_CHECKNULL_EX(lvalue, checknull, 0)
+#define Z_PARAM_ZVAL(lvalue) Z_PARAM_ZVAL_EX(lvalue, 0)
+
+#define Z_PARAM_VARIADIC_EX(args, argc, min) min | Z_PARAM_IS_VARIADIC, &args, &argc,
+#define Z_PARAM_VARIADIC(args, argc) Z_PARAM_VARIADIC_EX(args, argc, 0)
+
+#define Z_OPTIONAL 0xefffffff,
+
+#endif
 
 /* End of parameter parsing API -- andrei */
 
