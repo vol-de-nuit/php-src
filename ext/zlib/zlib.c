@@ -782,14 +782,27 @@ PHP_FUNCTION(deflate_add)
 	size_t in_len;
 	zval *res;
 	z_stream *ctx;
+	int flush_type = Z_SYNC_FLUSH;
 
-	if (SUCCESS != zend_parse_parameters(ZEND_NUM_ARGS(), "rs", &res, &in_buf, &in_len)) {
+	if (SUCCESS != zend_parse_parameters(ZEND_NUM_ARGS(), "rs|l", &res, &in_buf, &in_len, &flush_type)) {
 		return;
 	}
 
 	if (!(ctx = zend_fetch_resource_ex(res, NULL, le_deflate))) {
 		zend_error(E_WARNING, "Invalid type of resource passed");
 		return;
+	}
+
+	switch (flush_type) {
+		case Z_NO_FLUSH:
+		case Z_PARTIAL_FLUSH:
+		case Z_SYNC_FLUSH:
+		case Z_FULL_FLUSH:
+		case Z_BLOCK:
+			break;
+
+		default:
+			php_error_docref(NULL, E_WARNING, "flushing mode must be either ZLIB_NO_FLUSH, ZLIB_PARTIAL_FLUSH, ZLIB_SYNC_FLUSH, ZLIB_FULL_FLUSH or ZLIB_BLOCK");
 	}
 
 	if (in_len <= 0) {
@@ -803,7 +816,7 @@ PHP_FUNCTION(deflate_add)
 	ctx->avail_in = in_len;
 	ctx->avail_out = out->len;
 
-	if (deflate(ctx, Z_SYNC_FLUSH) == Z_OK) {
+	if (deflate(ctx, flush_type) == Z_OK) {
 		out->len = (char *) ctx->next_out - out->val;
 		out->val[out->len] = 0;
 
@@ -958,9 +971,10 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_deflate_init, 0, 0, 1)
 	ZEND_ARG_INFO(0, level)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO(arginfo_deflate_add, 0)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_deflate_add, 0, 0, 2)
 	ZEND_ARG_INFO(0, resource)
 	ZEND_ARG_INFO(0, add)
+	ZEND_ARG_INFO(0, flush_behavior)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO(arginfo_deflate_flush, 0)
@@ -1094,6 +1108,12 @@ static PHP_MINIT_FUNCTION(zlib)
 	REGISTER_LONG_CONSTANT("ZLIB_ENCODING_RAW", PHP_ZLIB_ENCODING_RAW, CONST_CS|CONST_PERSISTENT);
 	REGISTER_LONG_CONSTANT("ZLIB_ENCODING_GZIP", PHP_ZLIB_ENCODING_GZIP, CONST_CS|CONST_PERSISTENT);
 	REGISTER_LONG_CONSTANT("ZLIB_ENCODING_DEFLATE", PHP_ZLIB_ENCODING_DEFLATE, CONST_CS|CONST_PERSISTENT);
+
+	REGISTER_LONG_CONSTANT("ZLIB_NO_FLUSH", Z_NO_FLUSH, CONST_CS|CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("ZLIB_PARTIAL_FLUSH", Z_PARTIAL_FLUSH, CONST_CS|CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("ZLIB_SYNC_FLUSH", Z_SYNC_FLUSH, CONST_CS|CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("ZLIB_FULL_FLUSH", Z_FULL_FLUSH, CONST_CS|CONST_PERSISTENT);
+	REGISTER_LONG_CONSTANT("ZLIB_BLOCK", Z_BLOCK, CONST_CS|CONST_PERSISTENT);
 	REGISTER_INI_ENTRIES();
 	return SUCCESS;
 }
