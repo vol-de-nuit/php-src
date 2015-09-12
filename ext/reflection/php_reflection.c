@@ -6161,22 +6161,46 @@ static void _create_closure_from_static_method(
 	);
 }
 
+static inline void php_reflection_call_magic(INTERNAL_FUNCTION_PARAMETERS) {
+	zend_fcall_info fci;
+	zend_fcall_info_cache fcc;
 
-static void _create_closure_from_instance_method(
-	zval **return_value,
-	zval *callable,
-	zval *instance,
-	zend_string *method_name
-) {
+	memset(&fci, 0, sizeof(zend_fcall_info));
+	memset(&fci, 0, sizeof(zend_fcall_info_cache));
+
+	fci.size = sizeof(zend_fcall_info);
+	fci.retval = return_value;
+
+	fcc.initialized = 1;
+	fcc.function_handler = EX(func)->common.arg_info;
+	fci.params = (zval*) emalloc(sizeof(zval) * 2);
+	fci.param_count = 2;
+	ZVAL_STR(&fci.params[0], EX(func)->common.function_name);
+	array_init(&fci.params[1]);
+	zend_copy_parameters_array(ZEND_NUM_ARGS(), &fci.params[1]);
+
+	fci.object = Z_OBJ(EX(This));
+	fcc.object = Z_OBJ(EX(This));
+	fcc.calling_scope = EG(scope);
+
+	zend_call_function(&fci, &fcc);
+
+	zval_ptr_dtor(&fci.params[0]);
+	zval_ptr_dtor(&fci.params[1]);
+	efree(fci.params);
+
+	OBJ_RELEASE((zend_object *) EX(func)->op_array.prototype);
+}
+
+static void _create_closure_from_instance_method(zval **return_value, zval *callable, zval *instance, zend_string *method_name) {
 	zend_fcall_info_cache fcc;
 	char *error = NULL;
-	zend_string *func_name = NULL;
 
 	zend_function *mptr;
 	zval *function_name, *func;
 
-	if (!zend_is_callable_ex(callable, NULL, IS_CALLABLE_STRICT, &func_name, &fcc, &error)) {
-		if (EG(exception)){
+	if (!zend_is_callable_ex(callable, NULL, IS_CALLABLE_STRICT, NULL, &fcc, &error)) {
+		if (EG(exception)) {
 			zend_clear_exception();
 		}
 
@@ -6188,7 +6212,31 @@ static void _create_closure_from_instance_method(
 		return;
 	}
 
-	mptr = zend_hash_find_ptr(&fcc.calling_scope->function_table, method_name);
+	mptr = fcc.function_handler;
+
+	if (mptr->common.fn_flags & ZEND_ACC_CALL_VIA_TRAMPOLINE) {
+		zend_internal_function call;
+		memset(&call, 0, sizeof(zend_internal_function));
+
+		call.type = ZEND_INTERNAL_FUNCTION;
+		call.handler = php_reflection_call_magic;
+		call.function_name = mptr->common.function_name;
+		call.arg_info = mptr->common.prototype;
+		call.scope = mptr->common.scope;
+
+		zend_free_trampoline(mptr);
+		mptr = (zend_function *) &call;
+        }
+
+	if (EG(exception)) {
+		zend_clear_exception();
+		zend_throw_exception_ex(reflection_exception_ptr,
+			0,
+			"Failed to create closure: %s",
+			ZSTR_VAL(method_name)
+		);
+		return;
+	}
 
 	if (mptr == NULL) {
 		zend_throw_exception_ex(
@@ -6200,15 +6248,7 @@ static void _create_closure_from_instance_method(
 		return;
 	}
 
-	zend_create_closure(*return_value, mptr, EG(scope), Z_OBJCE_P(instance), instance);
-	if (EG(exception)) {
-		zend_clear_exception();
-		zend_throw_exception_ex(reflection_exception_ptr,
-			0,
-			"Failed to create closure: %s",
-			ZSTR_VAL(method_name)
-		);
-	}
+	zend_create_closure(*return_value, mptr, mptr->common.scope, Z_OBJCE_P(instance), instance);
 }
 
 /* {{{ proto Closure closure(callable var)
