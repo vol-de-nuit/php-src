@@ -6109,58 +6109,6 @@ ZEND_METHOD(reflection_zend_extension, getCopyright)
 }
 /* }}} */
 
-
-static void _create_closure_from_static_method(
-	zval **return_value,
-	zend_string *className,
-	zend_string *methodName
-) {
-	zend_class_entry *ce;
-	zend_function *mptr;
-
-	ce = zend_lookup_class(className);
-
-	if (!ce) {
-		zend_throw_exception_ex(
-			reflection_exception_ptr,
-			0,
-			"Class %s not found",
-			ZSTR_VAL(className)
-		);
-
-		return;
-	}
-
-	mptr = zend_std_get_static_method(ce, methodName, NULL);
-	if (mptr) {
-		zend_create_closure(*return_value, mptr, NULL, ce, NULL);
-		if (EG(exception)) {
-			zend_clear_exception();
-			zend_throw_exception_ex(
-				reflection_exception_ptr,
-				0,
-				"Method %s not callable on class %s",
-				ZSTR_VAL(methodName),
-				ZSTR_VAL(className)
-			);
-		}
-
-		return;
-	}
-
-	if (EG(exception)) {
-		zend_clear_exception();
-	}
-
-	zend_throw_exception_ex(
-		reflection_exception_ptr,
-		0,
-		"Method %s not callable on class %s",
-		ZSTR_VAL(methodName),
-		ZSTR_VAL(className)
-	);
-}
-
 static inline void php_reflection_call_magic(INTERNAL_FUNCTION_PARAMETERS) {
 	zend_fcall_info fci;
 	zend_fcall_info_cache fcc;
@@ -6172,7 +6120,7 @@ static inline void php_reflection_call_magic(INTERNAL_FUNCTION_PARAMETERS) {
 	fci.retval = return_value;
 
 	fcc.initialized = 1;
-	fcc.function_handler = EX(func)->common.arg_info;
+	fcc.function_handler = (zend_function *) EX(func)->common.arg_info;
 	fci.params = (zval*) emalloc(sizeof(zval) * 2);
 	fci.param_count = 2;
 	ZVAL_STR(&fci.params[0], EX(func)->common.function_name);
@@ -6192,27 +6140,21 @@ static inline void php_reflection_call_magic(INTERNAL_FUNCTION_PARAMETERS) {
 	OBJ_RELEASE((zend_object *) EX(func)->op_array.prototype);
 }
 
-static void _create_closure_from_instance_method(zval **return_value, zval *callable, zval *instance, zend_string *method_name) {
+static int zend_create_closure_from_callable(zval *return_value, zval *callable) {
 	zend_fcall_info_cache fcc;
 	char *error = NULL;
 
 	zend_function *mptr;
-	zval *function_name, *func;
+	zval instance;
 
 	if (!zend_is_callable_ex(callable, NULL, IS_CALLABLE_STRICT, NULL, &fcc, &error)) {
-		if (EG(exception)) {
-			zend_clear_exception();
-		}
-
-		zend_throw_exception_ex(reflection_exception_ptr,
-			0,
-			"Instance method not accessible: %s",
-			ZSTR_VAL(method_name)
-		);
-		return;
+		return FAILURE;
 	}
 
 	mptr = fcc.function_handler;
+	if (mptr == NULL) {
+		return FAILURE;
+	}
 
 	if (mptr->common.fn_flags & ZEND_ACC_CALL_VIA_TRAMPOLINE) {
 		zend_internal_function call;
@@ -6221,34 +6163,17 @@ static void _create_closure_from_instance_method(zval **return_value, zval *call
 		call.type = ZEND_INTERNAL_FUNCTION;
 		call.handler = php_reflection_call_magic;
 		call.function_name = mptr->common.function_name;
-		call.arg_info = mptr->common.prototype;
+		call.arg_info = (zend_internal_arg_info *) mptr->common.prototype;
 		call.scope = mptr->common.scope;
 
 		zend_free_trampoline(mptr);
 		mptr = (zend_function *) &call;
         }
 
-	if (EG(exception)) {
-		zend_clear_exception();
-		zend_throw_exception_ex(reflection_exception_ptr,
-			0,
-			"Failed to create closure: %s",
-			ZSTR_VAL(method_name)
-		);
-		return;
-	}
+	ZVAL_OBJ(&instance, fcc.object);
+	zend_create_closure(return_value, mptr, mptr->common.scope, fcc.object ? fcc.object->ce : NULL, fcc.object ? &instance : NULL);
 
-	if (mptr == NULL) {
-		zend_throw_exception_ex(
-			reflection_exception_ptr,
-			0,
-			"Failed to get method %s for object",
-			ZSTR_VAL(method_name)
-		);
-		return;
-	}
-
-	zend_create_closure(*return_value, mptr, mptr->common.scope, Z_OBJCE_P(instance), instance);
+	return SUCCESS;
 }
 
 /* {{{ proto Closure closure(callable var)
@@ -6259,185 +6184,23 @@ static void _create_closure_from_instance_method(zval **return_value, zval *call
 PHP_FUNCTION(closure)
 {
 	zval *callable;
+	int success;
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &callable) == FAILURE) {
 		return;
 	}
 
-	switch (Z_TYPE_P(callable)) {
-
-		case IS_STRING: {
-
-			char *colonPosition = strstr(Z_STRVAL_P(callable), "::");
-
-			if (colonPosition != NULL) {
-				//It should be a static class method
-				zend_string *classname;
-				zend_string *methodname;
-				size_t classname_len, method_name_len;
-				classname_len = colonPosition - Z_STRVAL_P(callable);
-
-				classname = zend_string_alloc(classname_len, 0);
-				zend_str_tolower_copy(ZSTR_VAL(classname), Z_STRVAL_P(callable), classname_len);
-
-				method_name_len = Z_STRLEN_P(callable) - (classname_len + 2);
-				methodname = zend_string_alloc(method_name_len, 0);
-				zend_str_tolower_copy(ZSTR_VAL(methodname), Z_STRVAL_P(callable) + (classname_len + 2), method_name_len);
-
-				if (zend_string_equals_literal(classname, "parent")) {
-					if (!EG(scope)) {
-						zend_throw_exception_ex(
-							reflection_exception_ptr,
-							0,
-							"cannot access parent:: when no class scope is active"
-						);
-						return;
-					} else if (!EG(scope)->parent) {
-						zend_throw_exception_ex(
-							reflection_exception_ptr,
-							0,
-							"cannot access parent:: when current class scope has no parent"
-						);
-						return;
-					}
-
-					zend_class_entry *parent_scope;
-					parent_scope = EG(scope)->parent;
-					_create_closure_from_static_method(&return_value, parent_scope->name, methodname);
-					return;
-				}
-
-				if (zend_string_equals_literal(classname, "self")) {
-					if (!EG(scope)) {
-						zend_throw_exception_ex(
-							reflection_exception_ptr,
-							0,
-							"cannot access self:: when no class scope is active"
-						);
-						return;
-					}
-					zend_class_entry *current_scope;
-					current_scope = EG(scope);
-					_create_closure_from_static_method(&return_value, current_scope->name, methodname);
-					return;
-				}
-
-				_create_closure_from_static_method(&return_value, classname, methodname);
-
-				zend_string_release(classname);
-				zend_string_release(methodname);
-				return;
-			} else {// it should be a function
-
-				zend_function *fptr;
-				char *name_str;
-				size_t name_len;
-	
-				if (zend_parse_parameters_throw(ZEND_NUM_ARGS(), "s", &name_str, &name_len) == FAILURE) {
-					return;
-				}
-				fptr = _find_function_pointer(name_str, name_len);
-				if (fptr == NULL) {
-					zend_throw_exception_ex(
-						reflection_exception_ptr,
-						0,
-						"Function %s() does not exist, cannot create closure",
-						name_str
-					);
-					return;
-				}
-		
-				zend_create_closure(return_value, fptr, NULL, NULL, NULL);
-				return;
-			}
-		}
-
-		case IS_ARRAY: {
-			zend_string *lc_method_name;
-			zval *instance_or_classname, *method_name;
-
-			instance_or_classname = zend_hash_index_find(Z_ARRVAL_P(callable), 0);
-			method_name = zend_hash_index_find(Z_ARRVAL_P(callable), 1);
-			
-			if (instance_or_classname == NULL || method_name == NULL) {
-				zend_throw_exception_ex(
-					reflection_exception_ptr,
-					0,
-					"invalid callable"
-				);
-				return;
-			}
-
-			if (Z_TYPE_P(method_name) != IS_STRING) {
-				zend_throw_exception_ex(
-					reflection_exception_ptr,
-					0,
-					"second element must be string"
-				);
-				return;
-			}
-
-			lc_method_name = zend_string_alloc(Z_STRLEN_P(method_name), 0);
-			zend_str_tolower_copy(ZSTR_VAL(lc_method_name), Z_STRVAL_P(method_name), Z_STRLEN_P(method_name));
-
-			if (Z_TYPE_P(instance_or_classname) == IS_OBJECT) {
-				_create_closure_from_instance_method(
-					&return_value, 
-					callable, 
-					instance_or_classname,
-					lc_method_name
-				);
-				zend_string_release(lc_method_name);
-				return;
-			}
-			else if (Z_TYPE_P(instance_or_classname) == IS_STRING) {
-				_create_closure_from_static_method(&return_value, Z_STR_P(instance_or_classname), lc_method_name);
-				zend_string_release(lc_method_name);
-				return;
-			}
-		}
-
-		case IS_OBJECT: {
-			if (instanceof_function(Z_OBJCE_P(callable), zend_ce_closure)) {
-				// It's already a closure
-				RETURN_ZVAL(callable, 1, 1);
-				return;
-			}
-			else {
-				zend_function *mptr;
-
-				mptr = zend_hash_str_find_ptr(
-					&Z_OBJCE_P(callable)->function_table,
-					"__invoke",
-					strlen("__invoke")
-				);
-
-				if (mptr != NULL) {
-					//this technically isn't necessary. __invoke must always be a callable thing.
-					if (!zend_is_callable_ex(callable, NULL, IS_CALLABLE_STRICT, NULL, NULL, NULL)) {
-						zend_throw_exception_ex(
-							reflection_exception_ptr,
-							0,
-							"__invoke not accessible"
-						);
-						return;
-					}
-				
-					zend_create_closure(return_value, mptr, mptr->common.scope, Z_OBJCE_P(callable), callable);
-					return;
-				}
-			}
-		}
-
-		default: {
-		}
+	if (Z_TYPE_P(callable) == IS_OBJECT && instanceof_function(Z_OBJCE_P(callable), zend_ce_closure)) {
+		// It's already a closure
+		RETURN_ZVAL(callable, 1, 1);
 	}
 
-	zend_throw_exception_ex(
-		reflection_exception_ptr,
-		0,
-		"Unknown callable type"
-	);
+	success = zend_create_closure_from_callable(return_value, callable);
+
+	if (EG(exception) || success == FAILURE) {
+		zend_clear_exception();
+		zend_throw_exception_ex(zend_ce_type_error, 0, "Failed to create closure from callable");
+	}
 }
 /* }}} */
 
