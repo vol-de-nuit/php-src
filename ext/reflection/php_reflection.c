@@ -6197,7 +6197,8 @@ PHP_FUNCTION(closure)
 
 	success = zend_create_closure_from_callable(return_value, callable);
 
-	if (EG(exception) || success == FAILURE) {
+	if (success == FAILURE) {
+		//TODO - Improve error messages.
 		zend_clear_exception();
 		zend_throw_exception_ex(zend_ce_type_error, 0, "Failed to create closure from callable");
 	}
