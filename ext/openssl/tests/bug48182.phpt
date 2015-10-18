@@ -8,7 +8,7 @@ if (OPENSSL_VERSION_NUMBER < 0x009070af) die("skip openssl version too low");
 --FILE--
 <?php
 $serverCode = <<<'CODE'
-    $serverUri = "ssl://127.0.0.1:64321";
+    $serverUri = "ssl://127.0.0.1:64325";
     $serverFlags = STREAM_SERVER_BIND | STREAM_SERVER_LISTEN;
     $serverCtx = stream_context_create(['ssl' => [
         'local_cert' => __DIR__ . '/bug54992.pem'
@@ -24,7 +24,7 @@ $serverCode = <<<'CODE'
 CODE;
 
 $clientCode = <<<'CODE'
-    $serverUri = "ssl://127.0.0.1:64321";
+    $serverUri = "ssl://127.0.0.1:64325";
     $clientFlags = STREAM_CLIENT_CONNECT | STREAM_CLIENT_ASYNC_CONNECT;
     $clientCtx = stream_context_create(['ssl' => [
         'cafile' => __DIR__ . '/bug54992-ca.pem',

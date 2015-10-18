@@ -22,7 +22,7 @@ if(substr(PHP_OS, 0, 3) == 'WIN') {
  */
 
 $serverCode = <<<'CODE'
-    $serverUri = "ssl://127.0.0.1:64321";
+    $serverUri = "ssl://127.0.0.1:64322";
     $serverFlags = STREAM_SERVER_BIND | STREAM_SERVER_LISTEN;
     $serverCtx = stream_context_create(['ssl' => [
         'local_cert' => __DIR__ . '/bug54992.pem',
@@ -62,7 +62,7 @@ $serverCode = <<<'CODE'
 CODE;
 
 $clientCode = <<<'CODE'
-    $cmd = 'openssl s_client -connect 127.0.0.1:64321';
+    $cmd = 'openssl s_client -connect 127.0.0.1:64322';
     $descriptorSpec = [["pipe", "r"], ["pipe", "w"], ["pipe", "w"]];
     $process = proc_open($cmd, $descriptorSpec, $pipes);
 

@@ -7,7 +7,7 @@ if (!function_exists("proc_open")) die("skip no proc_open");
 --FILE--
 <?php
 $serverCode = <<<'CODE'
-    $serverUri = "ssl://127.0.0.1:64321";
+    $serverUri = "ssl://127.0.0.1:64332";
     $serverFlags = STREAM_SERVER_BIND | STREAM_SERVER_LISTEN;
     $serverCtx = stream_context_create(['ssl' => [
         'local_cert' => __DIR__ . '/bug69215-server.pem',
@@ -25,7 +25,7 @@ $serverCode = <<<'CODE'
 CODE;
 
 $clientCode = <<<'CODE'
-    $serverUri = "ssl://127.0.0.1:64321";
+    $serverUri = "ssl://127.0.0.1:64332";
     $clientFlags = STREAM_CLIENT_CONNECT;
     $clientCtx = stream_context_create(['ssl' => [
         'local_cert' => __DIR__ . '/bug69215-client.pem',

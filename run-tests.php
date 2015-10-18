@@ -606,8 +606,7 @@ if (isset($argc) && $argc > 1) {
 				//case 'l'
 				case 'm':
 					$leak_check = true;
-					$valgrind_cmd = "valgrind --version";
-					$valgrind_header = system_with_timeout($valgrind_cmd, $environment);
+					$valgrind_header = `valgrind --version`;
 					$replace_count = 0;
 					if (!$valgrind_header) {
 						error("Valgrind returned no version info, cannot proceed.\nPlease check if Valgrind is installed.");
@@ -1100,9 +1099,9 @@ function error_report($testname, $logname, $tested)
 	}
 }
 
-function system_with_timeout($commandline, $env = null, $stdin = null)
+function system_with_timeout($id, $cb, $commandline, $env = null, $stdin = null)
 {
-	global $leak_check, $cwd;
+	global $leak_check, $cwd, $pipes, $procs;
 
 	$data = '';
 
@@ -1115,85 +1114,154 @@ function system_with_timeout($commandline, $env = null, $stdin = null)
 		0 => array('pipe', 'r'),
 		1 => array('pipe', 'w'),
 		2 => array('pipe', 'w')
-		), $pipes, $cwd, $bin_env, array('suppress_errors' => true, 'binary_pipes' => true));
+		), $proc_pipes, $cwd, $bin_env, array('suppress_errors' => true, 'binary_pipes' => true));
 
 	if (!$proc) {
 		return false;
 	}
 
 	if (!is_null($stdin)) {
-		fwrite($pipes[0], $stdin);
+		fwrite($proc_pipes[0], $stdin);
 	}
-	fclose($pipes[0]);
-	unset($pipes[0]);
+	fclose($proc_pipes[0]);
+	fclose($proc_pipes[2]);
+	$stdout = $proc_pipes[1];
 
 	$timeout = $leak_check ? 300 : (isset($env['TEST_TIMEOUT']) ? $env['TEST_TIMEOUT'] : 60);
 
-	while (true) {
+	$procs[(int) $stdout] = array($id, $cb, $proc, time() + $timeout);
+	$pipes[$id] = $stdout;
+}
+
+function run_loop() {
+	global $pipes, $procs;
+
+	$data = array();
+
+	while ($pipes) {
 		/* hide errors from interrupted syscalls */
 		$r = $pipes;
 		$w = null;
 		$e = null;
 
-		$n = @stream_select($r, $w, $e, $timeout);
+		$n = @stream_select($r, $w, $e, current($procs)[3] - time());
 
 		if ($n === false) {
 			break;
 		} else if ($n === 0) {
 			/* timed out */
-			$data .= "\n ** ERROR: process timed out **\n";
-			proc_terminate($proc, 9);
-			return $data;
-		} else if ($n > 0) {
-			$line = fread($pipes[1], 8192);
-			if (strlen($line) == 0) {
-				/* EOF */
-				break;
+			foreach ($procs as list($id, $cb, $proc, $timeout)) {
+				if ($timeout >= time()) {
+					break;
+				}
+
+				$out = isset($data[$id]) ? $data[$id] : "";
+				$out .= "\n ** ERROR: process timed out **\n";
+				proc_terminate($proc, 9);
+				proc_close($proc);
+				unset($data[$id], $pipes[$id], $procs[(int) $pipe]);
+				$cb($id, $out);
 			}
-			$data .= $line;
+		} else if ($n > 0) {
+			foreach ($r as $pipe) {
+				list($id, $cb, $proc) = $procs[(int) $pipe];
+
+				$line = fread($pipe, 8192);
+				if ($line == "") {
+					$out = isset($data[$id]) ? $data[$id] : "";
+					$stat = proc_get_status($proc);
+					if ($stat['signaled']) {
+						$out .= "\nTermsig=" . $stat['stopsig'] . "\n";
+					}
+					if ($stat["exitcode"] > 128 && $stat["exitcode"] < 160) {
+						$out .= "\nTermsig=" . ($stat["exitcode"] - 128) . "\n";
+					}
+					proc_close($proc);
+					unset($data[$id], $pipes[$id], $procs[(int) $pipe]);
+					$cb($id, $out);
+				} elseif (isset($data[$id])) {
+					$data[$id] .= $line;
+				} else {
+					$data[$id] = $line;
+				}
+			}
 		}
 	}
-
-	$stat = proc_get_status($proc);
-
-	if ($stat['signaled']) {
-		$data .= "\nTermsig=" . $stat['stopsig'] . "\n";
-	}
-	if ($stat["exitcode"] > 128 && $stat["exitcode"] < 160) {
-		$data .= "\nTermsig=" . ($stat["exitcode"] - 128) . "\n";
-	}
-
-	$code = proc_close($proc);
-	return $data;
 }
 
-function run_all_tests($test_files, $env, $redir_tested = null)
-{
-	global $test_results, $failed_tests_file, $php, $test_cnt, $test_idx;
+function run_all_tests($test_files, $env, $redir_tested = null) {
+	global $run_all_env, $run_all_files, $procs, $run_test_files, $pipes, $run_tests_redir;
 
-	foreach($test_files as $name) {
+	$run_test_files = array_merge($test_files, $redir_tested ? array(array("backup" => $run_all_env)) : array(), $run_test_files ?: array());
+	$run_all_env = $env;
+	$run_tests_redir = $redir_tested;
 
-		if (is_array($name)) {
-			$index = "# $name[1]: $name[0]";
+	if (!$pipes) {
+		for ($i = 0; $i < 20; $i++) {
+			run_next_test();
+		}
 
-			if ($redir_tested) {
+		run_loop();
+	}
+}
+
+function run_next_test() {
+	global $failed_tests_file, $php, $test_cnt, $run_all_env, $run_test_files, $run_tests_redir, $run_tests_redir_info, $IN_REDIRECT;
+
+	if ($run_test_files) {
+		$name = current($run_test_files);
+		unset($run_test_files[key($run_test_files)]);
+
+		if (is_array($name) && array_key_exists("backup", $name)) {
+			$run_all_env = $name["backup"];
+			$run_tests_redir = null;
+
+			show_redirect_ends($IN_REDIRECT['TESTS'], $IN_REDIRECT['tested'], $IN_REDIRECT['tested_file']);
+
+			$name = $IN_REDIRECT['via'];
+
+			// a redirected test never fails
+			junit_mark_test_as('PASS', $name, $IN_REDIRECT['tested']);
+
+			$IN_REDIRECT = false;
+			run_test_finish($name, 'REDIR');
+
+			return;
+		}
+
+		if ($run_tests_redir !== null) {
+			if (is_array($name)) {
 				$name = $name[0];
 			}
-		} else if ($redir_tested) {
-			$index = "# $redir_tested: $name";
-		} else {
-			$index = $name;
+			$run_tests_redir_info[$name] = $run_tests_redir;
 		}
-		$test_idx++;
-		$result = run_test($php, $name, $env);
 
-		if (!is_array($name) && $result != 'REDIR') {
-			$test_results[$index] = $result;
-			if ($failed_tests_file && ($result == 'XFAILED' || $result == 'FAILED' || $result == 'WARNED' || $result == 'LEAKED')) {
-				fwrite($failed_tests_file, "$index\n");
-			}
+		run_test($php, $name, $run_all_env);
+	}
+}
+
+function run_test_finish($name, $result) {
+	global $test_results, $failed_tests_file, $test_idx, $run_tests_redir_info, $preserve_vars;
+
+	if (isset($run_tests_redir_info[$name])) {
+		$index = "# {$run_tests_redir_info[$name]}: $name";
+		unset($run_tests_redir_info[$name]);
+	} else {
+		$index = $name;
+	}
+
+	unset($preserve_vars[$name]);
+
+	$test_idx++;
+
+	if (!is_array($name) && $result != 'REDIR') {
+		$test_results[$index] = $result;
+		if ($failed_tests_file && ($result == 'XFAILED' || $result == 'FAILED' || $result == 'WARNED' || $result == 'LEAKED')) {
+			fwrite($failed_tests_file, "$index\n");
 		}
 	}
+
+	run_next_test();
 }
 
 //
@@ -1220,6 +1288,7 @@ function show_file_block($file, $block, $section = null)
 //
 function run_test($php, $file, $env)
 {
+	global $preserve_vars;
 	global $log_format, $info_params, $ini_overwrites, $cwd, $PHP_FAILED_TESTS;
 	global $pass_options, $DETAILED, $IN_REDIRECT, $test_cnt, $test_idx;
 	global $leak_check, $temp_source, $temp_target, $cfg, $environment;
@@ -1373,7 +1442,7 @@ TEST $file
 		);
 
 		junit_mark_test_as('BORK', $shortname, $tested_file, 0, $bork_info);
-		return 'BORKED';
+		return run_test_finish($shortname, 'BORKED');
 	}
 
 	$tested = trim($section_text['TEST']);
@@ -1401,7 +1470,7 @@ TEST $file
 
 				junit_init_suite(junit_get_suitename_for($shortname));
 				junit_mark_test_as('SKIP', $shortname, $tested, 0, 'CGI not available');
-				return 'SKIPPED';
+				return run_test_finish($shortname, 'SKIPPED');
 			}
 		}
 	}
@@ -1433,7 +1502,7 @@ TEST $file
 
 				junit_init_suite(junit_get_suitename_for($shortname));
 				junit_mark_test_as('SKIP', $shortname, $tested, 0, 'phpdbg not available');
-				return 'SKIPPED';
+				return run_test_finish($shortname, 'SKIPPED');
 			}
 		}
 	}
@@ -1588,46 +1657,56 @@ TEST $file
 
 			junit_start_timer($shortname);
 
-			$output = system_with_timeout("$extra $php $pass_options -q $ini_settings $no_file_cache -d display_errors=0 \"$test_skipif\"", $env);
+			$preserve_vars[$shortname] = get_defined_vars();
+			system_with_timeout($shortname, "run_tests_post_skipif", "$extra $php $pass_options -q $ini_settings $no_file_cache -d display_errors=0 \"$test_skipif\"", $env);
+		}
+	} else {
+		$preserve_vars[$shortname] = get_defined_vars();
+		run_tests_post_skipif($shortname);
+	}
+}
 
-			junit_finish_timer($shortname);
+function run_tests_post_skipif($shortname, $output = null) {
+	global $preserve_vars;
+	extract($preserve_vars[$shortname], EXTR_REFS | EXTR_SKIP);
+
+	if ($output !== null) {
+		junit_finish_timer($shortname);
+
+		if (!$cfg['keep']['skip']) {
+			@unlink($test_skipif);
+		}
+
+		if (!strncasecmp('skip', ltrim($output), 4)) {
+			if (preg_match('/^\s*skip\s*(.+)\s*/i', $output, $m)) {
+				show_result('SKIP', $tested, $tested_file, "reason: $m[1]", $temp_filenames);
+			} else {
+				show_result('SKIP', $tested, $tested_file, '', $temp_filenames);
+			}
+
+			if (isset($old_php)) {
+				$php = $old_php;
+			}
 
 			if (!$cfg['keep']['skip']) {
 				@unlink($test_skipif);
 			}
 
-			if (!strncasecmp('skip', ltrim($output), 4)) {
+			$message = !empty($m[1]) ? $m[1] : '';
+			junit_mark_test_as('SKIP', $shortname, $tested, null, $message);
+			return run_test_finish($shortname, 'SKIPPED');
+		}
 
-				if (preg_match('/^\s*skip\s*(.+)\s*/i', $output, $m)) {
-					show_result('SKIP', $tested, $tested_file, "reason: $m[1]", $temp_filenames);
-				} else {
-					show_result('SKIP', $tested, $tested_file, '', $temp_filenames);
-				}
-
-				if (isset($old_php)) {
-					$php = $old_php;
-				}
-
-				if (!$cfg['keep']['skip']) {
-					@unlink($test_skipif);
-				}
-
-				$message = !empty($m[1]) ? $m[1] : '';
-				junit_mark_test_as('SKIP', $shortname, $tested, null, $message);
-				return 'SKIPPED';
+		if (!strncasecmp('info', ltrim($output), 4)) {
+			if (preg_match('/^\s*info\s*(.+)\s*/i', $output, $m)) {
+				$info = " (info: $m[1])";
 			}
+		}
 
-			if (!strncasecmp('info', ltrim($output), 4)) {
-				if (preg_match('/^\s*info\s*(.+)\s*/i', $output, $m)) {
-					$info = " (info: $m[1])";
-				}
-			}
-
-			if (!strncasecmp('warn', ltrim($output), 4)) {
-				if (preg_match('/^\s*warn\s*(.+)\s*/i', $output, $m)) {
-					$warn = true; /* only if there is a reason */
-					$info = " (warn: $m[1])";
-				}
+		if (!strncasecmp('warn', ltrim($output), 4)) {
+			if (preg_match('/^\s*warn\s*(.+)\s*/i', $output, $m)) {
+				$warn = true; /* only if there is a reason */
+				$info = " (warn: $m[1])";
 			}
 		}
 	}
@@ -1639,16 +1718,18 @@ TEST $file
 		$message = "ext/zlib required";
 		show_result('SKIP', $tested, $tested_file, "reason: $message", $temp_filenames);
 		junit_mark_test_as('SKIP', $shortname, $tested, null, $message);
-		return 'SKIPPED';
+		return run_test_finish($shortname, 'SKIPPED');
 	}
 
 	if (@count($section_text['REDIRECTTEST']) == 1) {
 		$test_files = array();
 
 		$IN_REDIRECT = eval($section_text['REDIRECTTEST']);
-		$IN_REDIRECT['via'] = "via [$shortname]\n\t";
+		$IN_REDIRECT['via'] = $shortname;
 		$IN_REDIRECT['dir'] = realpath(dirname($file));
 		$IN_REDIRECT['prefix'] = trim($section_text['TEST']);
+		$IN_REDIRECT['tested'] = $tested;
+		$IN_REDIRECT['tested_file'] = $tested_file;
 
 		if (count($IN_REDIRECT['TESTS']) == 1) {
 
@@ -1663,7 +1744,6 @@ TEST $file
 				}
 			}
 			$test_cnt += @count($test_files) - 1;
-			$test_idx--;
 
 			show_redirect_start($IN_REDIRECT['TESTS'], $tested, $tested_file);
 
@@ -1673,15 +1753,8 @@ TEST $file
 
 			usort($test_files, "test_sort");
 			run_all_tests($test_files, $redirenv, $tested);
-
-			show_redirect_ends($IN_REDIRECT['TESTS'], $tested, $tested_file);
-
-			// a redirected test never fails
-			$IN_REDIRECT = false;
-
-			junit_mark_test_as('PASS', $shortname, $tested);
-			return 'REDIR';
-
+			run_next_test();
+			return;
 		} else {
 
 			$bork_info = "Redirect info must contain exactly one TEST string to be used as redirect directory.";
@@ -1693,6 +1766,8 @@ TEST $file
 									'diff'   => '',
 									'info'   => "$bork_info [$file]",
 			);
+
+			$IN_REDIRECT = false;
 		}
 	}
 
@@ -1714,7 +1789,7 @@ TEST $file
 
 		junit_mark_test_as('BORK', $shortname, $tested, null, $bork_info);
 
-		return 'BORKED';
+		return run_test_finish($shortname, 'BORKED');
 	}
 
 	// We've satisfied the preconditions - run the test!
@@ -1778,7 +1853,7 @@ TEST $file
 
 		if (empty($request)) {
 			junit_mark_test_as('BORK', $shortname, $tested, null, 'empty $request');
-			return 'BORKED';
+			return run_test_finish($shortname, 'BORKED');
 		}
 
 		save_text($tmp_post, $request);
@@ -1812,7 +1887,7 @@ TEST $file
 
 		if (empty($request)) {
 			junit_mark_test_as('BORK', $shortname, $tested, null, 'empty $request');
-			return 'BORKED';
+			return run_test_finish($shortname, 'BORKED');
 		}
 
 		save_text($tmp_post, $request);
@@ -1903,7 +1978,14 @@ COMMAND $cmd
 
 	junit_start_timer($shortname);
 
-	$out = system_with_timeout($cmd, $env, isset($section_text['STDIN']) ? $section_text['STDIN'] : null);
+	system_with_timeout($shortname, "run_tests_post_run", $cmd, $env, isset($section_text['STDIN']) ? $section_text['STDIN'] : null);
+
+	$preserve_vars[$shortname] = get_defined_vars();
+}
+
+function run_tests_post_run($shortname, $out = null) {
+	global $preserve_vars;
+	extract($preserve_vars[$shortname], EXTR_REFS | EXTR_SKIP);
 
 	junit_finish_timer($shortname);
 
@@ -1919,12 +2001,24 @@ COMMAND $cmd
 				settings2params($clean_params);
 				$extra = substr(PHP_OS, 0, 3) !== "WIN" ?
 					"unset REQUEST_METHOD; unset QUERY_STRING; unset PATH_TRANSLATED; unset SCRIPT_FILENAME; unset REQUEST_METHOD;": "";
-				system_with_timeout("$extra $php $pass_options -q $clean_params $no_file_cache \"$test_clean\"", $env);
+				$preserve_vars[$shortname] = get_defined_vars();
+				system_with_timeout($shortname, "run_tests_post_clean", "$extra $php $pass_options -q $clean_params $no_file_cache \"$test_clean\"", $env);
+				return;
 			}
+		}
+	}
 
-			if (!$cfg['keep']['clean']) {
-				@unlink($test_clean);
-			}
+	$preserve_vars[$shortname] = get_defined_vars();
+	run_tests_post_clean($shortname);
+}
+
+function run_tests_post_clean($shortname, $output = null) {
+	global $preserve_vars;
+	extract($preserve_vars[$shortname], EXTR_REFS | EXTR_SKIP);
+
+	if ($output !== null) {
+		if (!$cfg['keep']['clean']) {
+			@unlink($test_clean);
 		}
 	}
 
@@ -2092,10 +2186,10 @@ COMMAND $cmd
 				if (isset($section_text['XFAIL'] )) {
 					$warn = true;
 					$info = " (warn: XFAIL section but test passes)";
-				}else {
+				} else {
 					show_result("PASS", $tested, $tested_file, '', $temp_filenames);
 					junit_mark_test_as('PASS', $shortname, $tested);
-					return 'PASSED';
+					return run_test_finish($shortname, 'PASSED');
 				}
 			}
 		}
@@ -2122,10 +2216,10 @@ COMMAND $cmd
 				if (isset($section_text['XFAIL'] )) {
 					$warn = true;
 					$info = " (warn: XFAIL section but test passes)";
-				}else {
+				} else {
 					show_result("PASS", $tested, $tested_file, '', $temp_filenames);
 					junit_mark_test_as('PASS', $shortname, $tested);
-					return 'PASSED';
+					return run_test_finish($shortname, 'PASSED');
 				}
 			}
 		}
@@ -2210,7 +2304,7 @@ $output
 	foreach ($restype as $type) {
 		$PHP_FAILED_TESTS[$type.'ED'][] = array (
 			'name'      => $file,
-			'test_name' => (is_array($IN_REDIRECT) ? $IN_REDIRECT['via'] : '') . $tested . " [$tested_file]",
+			'test_name' => (is_array($IN_REDIRECT) ? "via [{$IN_REDIRECT['via']}]\n\t" : '') . $tested . " [$tested_file]",
 			'output'    => $output_filename,
 			'diff'      => $diff_filename,
 			'info'      => $info,
@@ -2225,7 +2319,7 @@ $output
 
 	junit_mark_test_as($restype, str_replace($cwd . '/', '', $tested_file), $tested, null, $info, $diff);
 
-	return $restype[0] . 'ED';
+	return run_test_finish($shortname, $restype[0] . 'ED');
 }
 
 function comp_line($l1, $l2, $is_reg)
@@ -2924,4 +3018,3 @@ function junit_finish_timer($file_name) {
  * End:
  * vim: noet sw=4 ts=4
  */
-?>

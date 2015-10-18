@@ -13,7 +13,7 @@ $serverCode = <<<'CODE'
         'local_cert' => __DIR__ . '/streams_crypto_method.pem',
     ]]);
 
-    $server = stream_socket_server('tlsv1.1://127.0.0.1:64321', $errno, $errstr, $flags, $ctx);
+    $server = stream_socket_server('tlsv1.1://127.0.0.1:64347', $errno, $errstr, $flags, $ctx);
     phpt_notify();
 
     for ($i=0; $i < 3; $i++) {
@@ -30,13 +30,13 @@ $clientCode = <<<'CODE'
 
     phpt_wait();
 
-    $client = stream_socket_client("tlsv1.1://127.0.0.1:64321", $errno, $errstr, 3, $flags, $ctx);
+    $client = stream_socket_client("tlsv1.1://127.0.0.1:64347", $errno, $errstr, 3, $flags, $ctx);
     var_dump($client);
     
-    $client = @stream_socket_client("sslv3://127.0.0.1:64321", $errno, $errstr, 3, $flags, $ctx);
+    $client = @stream_socket_client("sslv3://127.0.0.1:64347", $errno, $errstr, 3, $flags, $ctx);
     var_dump($client);
     
-    $client = @stream_socket_client("tlsv1.2://127.0.0.1:64321", $errno, $errstr, 3, $flags, $ctx);
+    $client = @stream_socket_client("tlsv1.2://127.0.0.1:64347", $errno, $errstr, 3, $flags, $ctx);
     var_dump($client);
 CODE;
 

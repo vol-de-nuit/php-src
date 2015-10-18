@@ -8,7 +8,7 @@ if (OPENSSL_VERSION_NUMBER < 0x10001001) die("skip OpenSSLv1.0.1 required");
 --FILE--
 <?php
 $serverCode = <<<'CODE'
-    $serverUri = "ssl://127.0.0.1:64321";
+    $serverUri = "ssl://127.0.0.1:64323";
     $serverFlags = STREAM_SERVER_BIND | STREAM_SERVER_LISTEN;
     $serverCtx = stream_context_create(['ssl' => [
         'local_cert' => __DIR__ . '/streams_crypto_method.pem',
@@ -35,7 +35,7 @@ $serverCode = <<<'CODE'
 CODE;
 
 $clientCode = <<<'CODE'
-    $serverUri = "https://127.0.0.1:64321/";
+    $serverUri = "https://127.0.0.1:64323/";
     $clientFlags = STREAM_CLIENT_CONNECT;
     $clientCtx = stream_context_create(['ssl' => [
         'crypto_method' => STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT,
