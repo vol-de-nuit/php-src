@@ -5226,7 +5226,7 @@ ZEND_METHOD(reflection_property, __construct)
 		}
 	}
 
-	if (dynam_prop == 0 && (property_info->flags & ZEND_ACC_PRIVATE) == 0) {
+	if (dynam_prop == 0 && (property_info->flags & (ZEND_ACC_PRIVATE | ZEND_ACC_SHADOW)) != ZEND_ACC_PRIVATE) {
 		/* we have to search the class hierarchy for this (implicit) public or protected property */
 		zend_class_entry *tmp_ce = ce;
 		zend_property_info *tmp_info;

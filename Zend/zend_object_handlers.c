@@ -98,7 +98,7 @@ ZEND_API void rebuild_object_properties(zend_object *zobj) /* {{{ */
 				ZEND_HASH_FOREACH_PTR(&ce->properties_info, prop_info) {
 					if (prop_info->ce == ce &&
 					    (prop_info->flags & ZEND_ACC_STATIC) == 0 &&
-					    (prop_info->flags & ZEND_ACC_PRIVATE) != 0) {
+					    (prop_info->flags & (ZEND_ACC_PRIVATE | ZEND_ACC_SHADOW)) == ZEND_ACC_PRIVATE) {
 						zval zv;
 
 						if (UNEXPECTED(Z_TYPE_P(OBJ_PROP(zobj, prop_info->offset)) == IS_UNDEF)) {
@@ -274,7 +274,11 @@ static zend_always_inline int zend_verify_property_access(zend_property_info *pr
 	if (property_info->flags & ZEND_ACC_PUBLIC) {
 		return 1;
 	} else if (property_info->flags & ZEND_ACC_PRIVATE) {
-		return (ce == EG(scope) || property_info->ce == EG(scope));
+		if (UNEXPECTED((property_info->flags & ZEND_ACC_SHADOW))) {
+			return 0;
+		} else {
+			return ce == EG(scope) || property_info->ce == EG(scope);
+		}
 	} else {
 		ZEND_ASSERT(property_info->flags & ZEND_ACC_PROTECTED);
 		return zend_check_protected(property_info->ce, EG(scope));
@@ -331,7 +335,7 @@ static zend_always_inline uint32_t zend_get_property_offset(zend_class_entry *ce
 		} else {
 			if (EXPECTED(zend_verify_property_access(property_info, ce) != 0)) {
 				if (UNEXPECTED(!(flags & ZEND_ACC_CHANGED))
-					|| UNEXPECTED((flags & ZEND_ACC_PRIVATE))) {
+					|| UNEXPECTED((flags & (ZEND_ACC_PRIVATE | ZEND_ACC_SHADOW)) == ZEND_ACC_PRIVATE)) {
 					if (UNEXPECTED((flags & ZEND_ACC_STATIC) != 0)) {
 						if (!silent) {
 							zend_error(E_NOTICE, "Accessing static property %s::$%s as non static", ZSTR_VAL(ce->name), ZSTR_VAL(member));
@@ -351,7 +355,7 @@ static zend_always_inline uint32_t zend_get_property_offset(zend_class_entry *ce
 		&& EG(scope)
 		&& is_derived_class(ce, EG(scope))
 		&& (zv = zend_hash_find(&EG(scope)->properties_info, member)) != NULL
-		&& ((zend_property_info*)Z_PTR_P(zv))->flags & ZEND_ACC_PRIVATE) {
+		&& (((zend_property_info*)Z_PTR_P(zv))->flags & (ZEND_ACC_PRIVATE | ZEND_ACC_SHADOW)) == ZEND_ACC_PRIVATE) {
 		property_info = (zend_property_info*)Z_PTR_P(zv);
 		if (UNEXPECTED((property_info->flags & ZEND_ACC_STATIC) != 0)) {
 			return ZEND_DYNAMIC_PROPERTY_OFFSET;
@@ -428,7 +432,7 @@ ZEND_API zend_property_info *zend_get_property_info(zend_class_entry *ce, zend_s
 		&& EG(scope)
 		&& is_derived_class(ce, EG(scope))
 		&& (zv = zend_hash_find(&EG(scope)->properties_info, member)) != NULL
-		&& ((zend_property_info*)Z_PTR_P(zv))->flags & ZEND_ACC_PRIVATE) {
+		&& (((zend_property_info*)Z_PTR_P(zv))->flags & (ZEND_ACC_PRIVATE | ZEND_ACC_SHADOW)) == ZEND_ACC_PRIVATE) {
 		property_info = (zend_property_info*)Z_PTR_P(zv);
 	} else if (UNEXPECTED(property_info == NULL)) {
 exit_dynamic:
@@ -473,7 +477,7 @@ ZEND_API int zend_check_property_access(zend_object *zobj, zend_string *prop_inf
 		return FAILURE;
 	}
 	if (class_name && class_name[0] != '*') {
-		if (!(property_info->flags & ZEND_ACC_PRIVATE)) {
+		if ((property_info->flags & (ZEND_ACC_PRIVATE | ZEND_ACC_SHADOW)) != ZEND_ACC_PRIVATE) {
 			/* we we're looking for a private prop but found a non private one of the same name */
 			return FAILURE;
 		} else if (strcmp(ZSTR_VAL(prop_info_name)+1, ZSTR_VAL(property_info->name)+1)) {

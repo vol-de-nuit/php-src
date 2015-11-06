@@ -636,8 +636,7 @@ static void do_inherit_property(zend_property_info *parent_info, zend_string *ke
 			} else {
 				child_info = zend_duplicate_property_info(parent_info);
 			}
-			child_info->flags &= ~ZEND_ACC_PRIVATE; /* it's not private anymore */
-			child_info->flags |= ZEND_ACC_SHADOW; /* but it's a shadow of private */
+			child_info->flags |= ZEND_ACC_SHADOW;
 		} else {
 			if (UNEXPECTED(ce->type & ZEND_INTERNAL_CLASS)) {
 				child_info = zend_duplicate_property_info_internal(parent_info);
