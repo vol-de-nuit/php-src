@@ -1892,6 +1892,7 @@ static void zend_find_live_range(zend_op *opline, zend_uchar type, uint32_t var)
 	while (def != CG(active_op_array)->opcodes) {
 		def--;
 		if (def->result_type == type && def->result.var == var) {
+			uint32_t var = def->result.var;
 			if (def->opcode == ZEND_ADD_ARRAY_ELEMENT ||
 			    def->opcode == ZEND_ROPE_ADD) {
 			    /* not a real definition */
@@ -1924,7 +1925,7 @@ static void zend_find_live_range(zend_op *opline, zend_uchar type, uint32_t var)
 				zend_start_live_range(CG(active_op_array),
 					def + 1 - CG(active_op_array)->opcodes),
 				opline - CG(active_op_array)->opcodes,
-				ZEND_LIVE_TMPVAR, def->result.var);
+				ZEND_LIVE_TMPVAR, var);
 		    break;
 		}
 	}
@@ -2153,7 +2154,7 @@ static zend_op *zend_delayed_compile_end(uint32_t offset) /* {{{ */
 	zend_op *opline = NULL, *oplines = zend_stack_base(&CG(delayed_oplines_stack));
 	uint32_t i, count = zend_stack_count(&CG(delayed_oplines_stack));
 
-	ZEND_ASSERT(count > offset);
+	ZEND_ASSERT(count >= offset);
 	for (i = offset; i < count; ++i) {
 		opline = get_next_op(CG(active_op_array));
 		memcpy(opline, &oplines[i], sizeof(zend_op));
@@ -2874,44 +2875,85 @@ void zend_compile_compound_assign(znode *result, zend_ast *ast) /* {{{ */
 }
 /* }}} */
 
-uint32_t zend_compile_args(zend_ast *ast, zend_function *fbc) /* {{{ */
+znode *zend_compile_arg_values(zend_ast *ast, zend_function *fbc) /* {{{ */
 {
-	/* TODO.AST &var error */
 	zend_ast_list *args = zend_ast_get_list(ast);
-	uint32_t i;
+	uint32_t i = args->children;
 	zend_bool uses_arg_unpack = 0;
-	uint32_t arg_count = 0; /* number of arguments not including unpacks */
+	znode *arg_nodes = emalloc(sizeof(znode) * args->children);
 
-	for (i = 0; i < args->children; ++i) {
+	for (i = 0; i < args->children; i++) {
 		zend_ast *arg = args->child[i];
 		uint32_t arg_num = i + 1;
 
-		znode arg_node;
-		zend_op *opline;
-		zend_uchar opcode;
-		zend_ulong flags = 0;
+		arg_nodes[i].flag = 0;
 
 		if (arg->kind == ZEND_AST_UNPACK) {
 			uses_arg_unpack = 1;
 			fbc = NULL;
 
-			zend_compile_expr(&arg_node, arg->child[0]);
-			opline = zend_emit_op(NULL, ZEND_SEND_UNPACK, &arg_node, NULL);
+			zend_compile_expr(arg_nodes + i, arg->child[0]);
+			continue;
+		}
+
+		if (uses_arg_unpack) {
+			zend_error_noreturn(E_COMPILE_ERROR, "Cannot use positional argument after argument unpacking");
+		}
+
+		if (zend_is_variable(arg)) {
+			if (zend_is_call(arg)) {
+				zend_compile_var(arg_nodes + i, arg, BP_VAR_R);
+			} else if (fbc) {
+				if (ARG_SHOULD_BE_SENT_BY_REF(fbc, arg_num)) {
+					zend_compile_var(arg_nodes + i, arg, BP_VAR_W);
+				} else {
+					zend_compile_var(arg_nodes + i, arg, BP_VAR_R);
+				}
+			} else {
+				/* BP_VAR_FUNC_ARG needs to be fetched after EX(call) had been determined */
+				uint32_t offset = zend_delayed_compile_begin();
+				zend_delayed_compile_var(arg_nodes + i, arg, BP_VAR_FUNC_ARG | (arg_num << BP_VAR_SHIFT));
+				arg_nodes[i].flag = zend_delayed_compile_begin() - offset;
+			}
+		} else {
+			zend_compile_expr(arg_nodes + i, arg);
+		}
+	}
+
+	return arg_nodes;
+}
+/* }}} */
+
+uint32_t zend_compile_arg_passing(zend_ast *ast, zend_function *fbc, znode *arg_nodes) /* {{{ */
+{
+	zend_ast_list *args = zend_ast_get_list(ast);
+	int i;
+	uint32_t arg_count = 0; /* number of arguments not including unpacks */
+
+	for (i = args->children - 1; i >= 0; i--) {
+		if (arg_nodes[i].flag) {
+			zend_delayed_compile_end(zend_delayed_compile_begin() - arg_nodes[i].flag);
+		}
+	}
+
+	for (i = 0; i < args->children; ++i) {
+		zend_ast *arg = args->child[i];
+		uint32_t arg_num = i + 1;
+
+		zend_op *opline;
+		zend_uchar opcode;
+		zend_ulong flags = 0;
+
+		if (arg->kind == ZEND_AST_UNPACK) {
+			opline = zend_emit_op(NULL, ZEND_SEND_UNPACK, arg_nodes + i, NULL);
 			opline->op2.num = arg_count;
 			opline->result.var = (uint32_t)(zend_intptr_t)ZEND_CALL_ARG(NULL, arg_count);
 			continue;
 		}
 
-		if (uses_arg_unpack) {
-			zend_error_noreturn(E_COMPILE_ERROR,
-				"Cannot use positional argument after argument unpacking");
-		}
-
-		arg_count++;
 		if (zend_is_variable(arg)) {
 			if (zend_is_call(arg)) {
-				zend_compile_var(&arg_node, arg, BP_VAR_R);
-				if (arg_node.op_type & (IS_CONST|IS_TMP_VAR)) {
+				if (arg_nodes[i].op_type & (IS_CONST|IS_TMP_VAR)) {
 					/* Function call was converted into builtin instruction */
 					opcode = ZEND_SEND_VAL;
 				} else {
@@ -2926,21 +2968,16 @@ uint32_t zend_compile_args(zend_ast *ast, zend_function *fbc) /* {{{ */
 				}
 			} else if (fbc) {
 				if (ARG_SHOULD_BE_SENT_BY_REF(fbc, arg_num)) {
-					zend_compile_var(&arg_node, arg, BP_VAR_W);
 					opcode = ZEND_SEND_REF;
 				} else {
-					zend_compile_var(&arg_node, arg, BP_VAR_R);
 					opcode = ZEND_SEND_VAR;
 				}
 			} else {
-				zend_compile_var(&arg_node, arg,
-					BP_VAR_FUNC_ARG | (arg_num << BP_VAR_SHIFT));
 				opcode = ZEND_SEND_VAR_EX;
 			}
 		} else {
-			zend_compile_expr(&arg_node, arg);
-			ZEND_ASSERT(arg_node.op_type != IS_CV);
-			if (arg_node.op_type == IS_VAR) {
+			ZEND_ASSERT(arg_nodes[i].op_type != IS_CV);
+			if (arg_nodes[i].op_type == IS_VAR) {
 				opcode = ZEND_SEND_VAR_NO_REF;
 				if (fbc && ARG_MUST_BE_SENT_BY_REF(fbc, arg_num)) {
 					flags |= ZEND_ARG_SEND_BY_REF;
@@ -2957,7 +2994,7 @@ uint32_t zend_compile_args(zend_ast *ast, zend_function *fbc) /* {{{ */
 			}
 		}
 
-		opline = zend_emit_op(NULL, opcode, &arg_node, NULL);
+		opline = zend_emit_op(NULL, opcode, arg_nodes + i, NULL);
 		opline->op2.opline_num = arg_num;
 		opline->result.var = (uint32_t)(zend_intptr_t)ZEND_CALL_ARG(NULL, arg_num);
 
@@ -2974,7 +3011,11 @@ uint32_t zend_compile_args(zend_ast *ast, zend_function *fbc) /* {{{ */
 		} else if (fbc) {
 			opline->extended_value = ZEND_ARG_COMPILE_TIME_BOUND;
 		}
+
+		arg_count++;
 	}
+
+	efree(arg_nodes);
 
 	return arg_count;
 }
@@ -3005,16 +3046,14 @@ ZEND_API zend_uchar zend_get_call_op(zend_uchar init_op, zend_function *fbc) /* 
 }
 /* }}} */
 
-void zend_compile_call_common(znode *result, zend_ast *args_ast, zend_function *fbc) /* {{{ */
+void zend_compile_call_common(znode *result, znode *arg_nodes, zend_ast *args_ast, zend_function *fbc) /* {{{ */
 {
 	zend_op *opline;
-	uint32_t opnum_init = get_next_op_number(CG(active_op_array)) - 1;
-	uint32_t arg_count;
-	uint32_t call_flags;
+	uint32_t arg_count, call_flags, opnum_init = get_next_op_number(CG(active_op_array)) - 1;;
 
 	zend_do_extended_fcall_begin();
 
-	arg_count = zend_compile_args(args_ast, fbc);
+	arg_count = zend_compile_arg_passing(args_ast, fbc, arg_nodes);
 
 	opline = &CG(active_op_array)->opcodes[opnum_init];
 	opline->extended_value = arg_count;
@@ -3046,6 +3085,7 @@ zend_bool zend_compile_function_name(znode *name_node, zend_ast *name_ast) /* {{
 
 void zend_compile_ns_call(znode *result, znode *name_node, zend_ast *args_ast) /* {{{ */
 {
+	znode *arg_nodes = zend_compile_arg_values(args_ast, NULL);
 	zend_op *opline = get_next_op(CG(active_op_array));
 	opline->opcode = ZEND_INIT_NS_FCALL_BY_NAME;
 	SET_UNUSED(opline->op1);
@@ -3054,12 +3094,14 @@ void zend_compile_ns_call(znode *result, znode *name_node, zend_ast *args_ast) /
 		CG(active_op_array), Z_STR(name_node->u.constant));
 	zend_alloc_cache_slot(opline->op2.constant);
 
-	zend_compile_call_common(result, args_ast, NULL);
+	zend_compile_call_common(result, arg_nodes, args_ast, NULL);
 }
 /* }}} */
 
 void zend_compile_dynamic_call(znode *result, znode *name_node, zend_ast *args_ast) /* {{{ */
 {
+	znode *arg_nodes = zend_compile_arg_values(args_ast, NULL);
+
 	if (name_node->op_type == IS_CONST && Z_TYPE(name_node->u.constant) == IS_STRING) {
 		const char *colon;
 		zend_string *str = Z_STR(name_node->u.constant);
@@ -3088,7 +3130,7 @@ void zend_compile_dynamic_call(znode *result, znode *name_node, zend_ast *args_a
 		zend_emit_op(NULL, ZEND_INIT_DYNAMIC_CALL, NULL, name_node);
 	}
 
-	zend_compile_call_common(result, args_ast, NULL);
+	zend_compile_call_common(result, arg_nodes, args_ast, NULL);
 }
 /* }}} */
 
@@ -3233,8 +3275,8 @@ int zend_compile_func_cufa(znode *result, zend_ast_list *args, zend_string *lcna
 		return FAILURE;
 	}
 
-	zend_compile_init_user_func(args->child[0], 0, lcname);
 	zend_compile_expr(&arg_node, args->child[1]);
+	zend_compile_init_user_func(args->child[0], 0, lcname);
 	zend_emit_op(NULL, ZEND_SEND_ARRAY, &arg_node, NULL);
 	zend_emit_op(result, ZEND_DO_FCALL, NULL, NULL);
 
@@ -3245,33 +3287,36 @@ int zend_compile_func_cufa(znode *result, zend_ast_list *args, zend_string *lcna
 /* cuf = call_user_func */
 int zend_compile_func_cuf(znode *result, zend_ast_list *args, zend_string *lcname) /* {{{ */
 {
-	uint32_t i;
+	uint32_t i, offset = zend_delayed_compile_begin();
+	znode *arg_nodes;
 
 	if (args->children < 1 || zend_args_contain_unpack(args)) {
 		return FAILURE;
 	}
 
-	zend_compile_init_user_func(args->child[0], args->children - 1, lcname);
+	arg_nodes = emalloc(args->children * sizeof(znode));
+
 	for (i = 1; i < args->children; ++i) {
 		zend_ast *arg_ast = args->child[i];
-		znode arg_node;
-		zend_op *opline;
-		zend_bool send_user = 0;
 
 		if (zend_is_variable(arg_ast) && !zend_is_call(arg_ast)) {
-			zend_compile_var(&arg_node, arg_ast, BP_VAR_FUNC_ARG | (i << BP_VAR_SHIFT));
-			send_user = 1;
+			/* BP_VAR_FUNC_ARG needs to be fetched after EX(call) had been determined */
+			zend_delayed_compile_var(arg_nodes + i, arg_ast, BP_VAR_FUNC_ARG | (i << BP_VAR_SHIFT));
 		} else {
-			zend_compile_expr(&arg_node, arg_ast);
-			if (arg_node.op_type & (IS_VAR|IS_CV)) {
-				send_user = 1;
-			}
+			zend_compile_expr(arg_nodes + i, arg_ast);
 		}
+	}
 
-		if (send_user) {
-			opline = zend_emit_op(NULL, ZEND_SEND_USER, &arg_node, NULL);
+	zend_compile_init_user_func(args->child[0], args->children - 1, lcname);
+	zend_delayed_compile_end(offset);
+
+	for (i = 1; i < args->children; ++i) {
+		zend_op *opline;
+
+		if (arg_nodes[i].op_type & (IS_VAR|IS_CV)) {
+			opline = zend_emit_op(NULL, ZEND_SEND_USER, arg_nodes + i, NULL);
 		} else {
-			opline = zend_emit_op(NULL, ZEND_SEND_VAL, &arg_node, NULL);
+			opline = zend_emit_op(NULL, ZEND_SEND_VAL, arg_nodes + i, NULL);
 		}
 
 		opline->op2.num = i;
@@ -3279,6 +3324,7 @@ int zend_compile_func_cuf(znode *result, zend_ast_list *args, zend_string *lcnam
 	}
 	zend_emit_op(result, ZEND_DO_FCALL, NULL, NULL);
 
+	efree(arg_nodes);
 	return SUCCESS;
 }
 /* }}} */
@@ -3306,9 +3352,21 @@ static int zend_compile_assert(znode *result, zend_ast_list *args, zend_string *
 	if (EG(assertions) >= 0) {
 		znode name_node;
 		zend_op *opline;
+		znode *arg_nodes;
 		uint32_t check_op_number = get_next_op_number(CG(active_op_array));
 
 		zend_emit_op(NULL, ZEND_ASSERT_CHECK, NULL, NULL);
+
+		if (args->children == 1 &&
+		    (args->child[0]->kind != ZEND_AST_ZVAL ||
+		     Z_TYPE_P(zend_ast_get_zval(args->child[0])) != IS_STRING)) {
+			/* add "assert(condition) as assertion message */
+			zend_ast_list_add((zend_ast*)args,
+				zend_ast_create_zval_from_str(
+					zend_ast_export("assert(", args->child[0], ")")));
+		}
+
+		arg_nodes = zend_compile_arg_values((zend_ast *) args, fbc);
 
 		if (fbc) {
 			name_node.op_type = IS_CONST;
@@ -3323,16 +3381,7 @@ static int zend_compile_assert(znode *result, zend_ast_list *args, zend_string *
 		}
 		zend_alloc_cache_slot(opline->op2.constant);
 
-		if (args->children == 1 &&
-		    (args->child[0]->kind != ZEND_AST_ZVAL ||
-		     Z_TYPE_P(zend_ast_get_zval(args->child[0])) != IS_STRING)) {
-			/* add "assert(condition) as assertion message */
-			zend_ast_list_add((zend_ast*)args,
-				zend_ast_create_zval_from_str(
-					zend_ast_export("assert(", args->child[0], ")")));
-		}
-
-		zend_compile_call_common(result, (zend_ast*)args, fbc);
+		zend_compile_call_common(result, arg_nodes, (zend_ast *) args, fbc);
 
 		CG(active_op_array)->opcodes[check_op_number].op2.opline_num = get_next_op_number(CG(active_op_array));
 	} else {
@@ -3423,6 +3472,7 @@ void zend_compile_call(znode *result, zend_ast *ast, uint32_t type) /* {{{ */
 		zend_string *lcname;
 		zend_function *fbc;
 		zend_op *opline;
+		znode *arg_nodes;
 
 		lcname = zend_string_tolower(Z_STR_P(name));
 
@@ -3447,10 +3497,11 @@ void zend_compile_call(znode *result, zend_ast *ast, uint32_t type) /* {{{ */
 		zval_ptr_dtor(&name_node.u.constant);
 		ZVAL_NEW_STR(&name_node.u.constant, lcname);
 
+		arg_nodes = zend_compile_arg_values(args_ast, fbc);
 		opline = zend_emit_op(NULL, ZEND_INIT_FCALL, NULL, &name_node);
 		zend_alloc_cache_slot(opline->op2.constant);
 
-		zend_compile_call_common(result, args_ast, fbc);
+		zend_compile_call_common(result, arg_nodes, args_ast, fbc);
 	}
 }
 /* }}} */
@@ -3461,7 +3512,7 @@ void zend_compile_method_call(znode *result, zend_ast *ast, uint32_t type) /* {{
 	zend_ast *method_ast = ast->child[1];
 	zend_ast *args_ast = ast->child[2];
 
-	znode obj_node, method_node;
+	znode obj_node, method_node, *arg_nodes;
 	zend_op *opline;
 
 	if (is_this_fetch(obj_ast)) {
@@ -3471,6 +3522,8 @@ void zend_compile_method_call(znode *result, zend_ast *ast, uint32_t type) /* {{
 	}
 
 	zend_compile_expr(&method_node, method_ast);
+	arg_nodes = zend_compile_arg_values(args_ast, NULL);
+
 	opline = zend_emit_op(NULL, ZEND_INIT_METHOD_CALL, &obj_node, NULL);
 
 	if (method_node.op_type == IS_CONST) {
@@ -3486,7 +3539,7 @@ void zend_compile_method_call(znode *result, zend_ast *ast, uint32_t type) /* {{
 		SET_NODE(opline->op2, &method_node);
 	}
 
-	zend_compile_call_common(result, args_ast, NULL);
+	zend_compile_call_common(result, arg_nodes, args_ast, NULL);
 }
 /* }}} */
 
@@ -3502,7 +3555,7 @@ void zend_compile_static_call(znode *result, zend_ast *ast, uint32_t type) /* {{
 	zend_ast *method_ast = ast->child[1];
 	zend_ast *args_ast = ast->child[2];
 
-	znode class_node, method_node;
+	znode class_node, method_node, *arg_nodes;
 	zend_op *opline;
 
 	zend_compile_class_ref_ex(&class_node, class_ast, ZEND_FETCH_CLASS_EXCEPTION);
@@ -3518,6 +3571,8 @@ void zend_compile_static_call(znode *result, zend_ast *ast, uint32_t type) /* {{
 			method_node.op_type = IS_UNUSED;
 		}
 	}
+
+	arg_nodes = zend_compile_arg_values(args_ast, NULL);
 
 	opline = get_next_op(CG(active_op_array));
 	opline->opcode = ZEND_INIT_STATIC_METHOD_CALL;
@@ -3538,7 +3593,7 @@ void zend_compile_static_call(znode *result, zend_ast *ast, uint32_t type) /* {{
 	}
 	zend_check_live_ranges(opline);
 
-	zend_compile_call_common(result, args_ast, NULL);
+	zend_compile_call_common(result, arg_nodes, args_ast, NULL);
 }
 /* }}} */
 
@@ -3549,7 +3604,7 @@ void zend_compile_new(znode *result, zend_ast *ast) /* {{{ */
 	zend_ast *class_ast = ast->child[0];
 	zend_ast *args_ast = ast->child[1];
 
-	znode class_node, ctor_result;
+	znode class_node, ctor_result, *arg_nodes;
 	zend_op *opline;
 	uint32_t opnum;
 
@@ -3568,6 +3623,8 @@ void zend_compile_new(znode *result, zend_ast *ast) /* {{{ */
 		zend_compile_class_ref_ex(&class_node, class_ast, ZEND_FETCH_CLASS_EXCEPTION);
 	}
 
+	arg_nodes = zend_compile_arg_values(args_ast, NULL);
+
 	opnum = get_next_op_number(CG(active_op_array));
 	opline = zend_emit_op(result, ZEND_NEW, NULL, NULL);
 
@@ -3579,7 +3636,7 @@ void zend_compile_new(znode *result, zend_ast *ast) /* {{{ */
 		SET_NODE(opline->op1, &class_node);
 	}
 
-	zend_compile_call_common(&ctor_result, args_ast, NULL);
+	zend_compile_call_common(&ctor_result, arg_nodes, args_ast, NULL);
 	zend_do_free(&ctor_result);
 
 	/* New jumps over ctor call if ctor does not exist */
