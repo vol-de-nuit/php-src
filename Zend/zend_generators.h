@@ -56,14 +56,7 @@ struct _zend_generator_node {
 
 struct _zend_generator {
 	zend_object std;
-
 	zend_object_iterator *iterator;
-
-	/* The suspended execution context. */
-	zend_execute_data *execute_data;
-
-	/* The separate stack used by generator */
-	zend_vm_stack stack;
 
 	/* Current value */
 	zval value;
@@ -86,11 +79,14 @@ struct _zend_generator {
 	 * are nested. */
 	zend_generator_node node;
 
+	/* ZEND_GENERATOR_* flags */
+	zend_uchar flags;
+
 	/* Fake execute_data for stacktraces */
 	zend_execute_data execute_fake;
 
-	/* ZEND_GENERATOR_* flags */
-	zend_uchar flags;
+	/* The suspended execution context. Overallocated to keep CVs and temporaries. */
+	zend_execute_data execute_data;
 };
 
 static const zend_uchar ZEND_GENERATOR_CURRENTLY_RUNNING = 0x1;
@@ -120,7 +116,7 @@ static zend_always_inline zend_generator *zend_generator_get_current(zend_genera
 	leaf = generator->node.children ? generator->node.ptr.leaf : generator;
 	root = leaf->node.ptr.root;
 
-	if (EXPECTED(root->execute_data && root->node.parent == NULL)) {
+	if (EXPECTED(root->execute_data.func && root->node.parent == NULL)) {
 		/* generator still running */
 		return root;
 	}

@@ -7756,7 +7756,7 @@ ZEND_VM_HANDLER(142, ZEND_YIELD_FROM, CONST|TMP|VAR|CV, ANY)
 				} else {
 					zend_generator_yield_from(generator, new_gen);
 				}
-			} else if (UNEXPECTED(new_gen->execute_data == NULL)) {
+			} else if (UNEXPECTED(new_gen->execute_data.func == NULL)) {
 				zend_throw_error(NULL, "Generator passed to yield from was aborted without proper return and is unable to continue");
 				HANDLE_EXCEPTION();
 			} else {

@@ -2316,7 +2316,7 @@ static zend_always_inline void i_init_execute_data(zend_execute_data *execute_da
 }
 /* }}} */
 
-ZEND_API zend_execute_data *zend_create_generator_execute_data(zend_execute_data *call, zend_op_array *op_array, zval *return_value) /* {{{ */
+ZEND_API void zend_set_generator_execute_data(zend_execute_data *call, zend_execute_data *execute_data, zend_op_array *op_array, zval *return_value) /* {{{ */
 {
 	/*
 	 * Normally the execute_data is allocated on the VM stack (because it does
@@ -2324,32 +2324,21 @@ ZEND_API zend_execute_data *zend_create_generator_execute_data(zend_execute_data
 	 * though this behavior would be suboptimal, because the (rather large)
 	 * structure would have to be copied back and forth every time execution is
 	 * suspended or resumed. That's why for generators the execution context
-	 * is allocated using a separate VM stack, thus allowing to save and
-	 * restore it simply by replacing a pointer.
+	 * is allocated on the generator object itself and the stack is not used.
+	 * This allows for stackless generators using the main stack everywhere.
 	 */
-	zend_execute_data *execute_data;
 	uint32_t num_args = ZEND_CALL_NUM_ARGS(call);
-	size_t stack_size = (ZEND_CALL_FRAME_SLOT + MAX(op_array->last_var + op_array->T, num_args)) * sizeof(zval);
 	uint32_t call_info;
 
-	EG(vm_stack) = zend_vm_stack_new_page(
-		EXPECTED(stack_size < ZEND_VM_STACK_FREE_PAGE_SIZE(1)) ?
-			ZEND_VM_STACK_PAGE_SIZE(1) :
-			ZEND_VM_STACK_PAGE_ALIGNED_SIZE(1, stack_size),
-		NULL);
-	EG(vm_stack_top) = EG(vm_stack)->top;
-	EG(vm_stack_end) = EG(vm_stack)->end;
-
-	call_info = ZEND_CALL_TOP_FUNCTION | ZEND_CALL_ALLOCATED | (ZEND_CALL_INFO(call) & (ZEND_CALL_CLOSURE|ZEND_CALL_RELEASE_THIS));
+	call_info = ZEND_CALL_TOP_FUNCTION | (ZEND_CALL_INFO(call) & (ZEND_CALL_CLOSURE|ZEND_CALL_RELEASE_THIS));
 	if (Z_OBJ(call->This)) {
 		call_info |= ZEND_CALL_RELEASE_THIS;
 	}
-	execute_data = zend_vm_stack_push_call_frame(
-		call_info,
-		(zend_function*)op_array,
-		num_args,
-		call->called_scope,
-		Z_OBJ(call->This));
+
+	EX(func) = (zend_function *) op_array;
+	Z_OBJ(EX(This)) = Z_OBJ(call->This);
+	EX(called_scope) = call->called_scope;
+	ZEND_SET_CALL_INFO(execute_data, call_info);
 	EX(prev_execute_data) = NULL;
 	EX_NUM_ARGS() = num_args;
 
@@ -2365,12 +2354,9 @@ ZEND_API zend_execute_data *zend_create_generator_execute_data(zend_execute_data
 			arg_dst++;
 		} while (arg_src != end);
 	}
-
 	EX(symbol_table) = NULL;
 
 	i_init_func_execute_data(execute_data, op_array, return_value, 1);
-
-	return execute_data;
 }
 /* }}} */
 
