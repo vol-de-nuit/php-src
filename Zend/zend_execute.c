@@ -2444,134 +2444,66 @@ static zend_always_inline zend_generator *zend_get_running_generator(zend_execut
 }
 /* }}} */
 
-static void cleanup_unfinished_calls(zend_execute_data *execute_data, uint32_t op_num) /* {{{ */
+/* If the exception was thrown during a function call there might be arguments pushed to the stack that have to be dtor'ed. */
+/* Assuming no nested call frames; to be called only from ZEND_SEND_* ops */
+static void cleanup_call_frame(zend_execute_data *execute_data, const zend_op *last_op) /* {{{ */
 {
-	if (UNEXPECTED(EX(call))) {
-		zend_execute_data *call = EX(call);
-		zend_op *opline = EX(func)->op_array.opcodes + op_num;
-		int level;
-		int do_exit;
-		
-		if (UNEXPECTED(opline->opcode == ZEND_INIT_FCALL ||
-			opline->opcode == ZEND_INIT_FCALL_BY_NAME ||
-			opline->opcode == ZEND_INIT_DYNAMIC_CALL ||
-			opline->opcode == ZEND_INIT_METHOD_CALL ||
-			opline->opcode == ZEND_INIT_STATIC_METHOD_CALL)) {
-			ZEND_ASSERT(op_num);
-			opline--;
-		}
+	zend_execute_data *call = EX(call);
+	EX(call) = NULL; /* guarantee that only one EX(call) is alive at most; because possible destructors ... */
 
-		do {
-			/* If the exception was thrown during a function call there might be
-			 * arguments pushed to the stack that have to be dtor'ed. */
+	switch (last_op->opcode) {
+		case ZEND_FETCH_FUNC_ARG:
+		case ZEND_FETCH_DIM_FUNC_ARG:
+		case ZEND_FETCH_OBJ_FUNC_ARG:
+		case ZEND_FETCH_STATIC_PROP_FUNC_ARG:
+			ZEND_CALL_NUM_ARGS(call) = (last_op->extended_value & ZEND_FETCH_ARG_MASK) - 1;
+			break;
 
-			/* find the number of actually passed arguments */
-			level = 0;
-			do_exit = 0;
-			do {
-				switch (opline->opcode) {
-					case ZEND_DO_FCALL:
-					case ZEND_DO_ICALL:
-					case ZEND_DO_UCALL:
-					case ZEND_DO_FCALL_BY_NAME:
-						level++;
-						break;
-					case ZEND_INIT_FCALL:
-					case ZEND_INIT_FCALL_BY_NAME:
-					case ZEND_INIT_NS_FCALL_BY_NAME:
-					case ZEND_INIT_DYNAMIC_CALL:
-					case ZEND_INIT_USER_CALL:
-					case ZEND_INIT_METHOD_CALL:
-					case ZEND_INIT_STATIC_METHOD_CALL:
-					case ZEND_NEW:
-						if (level == 0) {
-							ZEND_CALL_NUM_ARGS(call) = 0;
-							do_exit = 1;
-						}
-						level--;
-						break;
-					case ZEND_SEND_VAL:
-					case ZEND_SEND_VAL_EX:
-					case ZEND_SEND_VAR:
-					case ZEND_SEND_VAR_EX:
-					case ZEND_SEND_REF:
-					case ZEND_SEND_VAR_NO_REF:
-					case ZEND_SEND_USER:
-						if (level == 0) {
-							ZEND_CALL_NUM_ARGS(call) = opline->op2.num;
-							do_exit = 1;
-						}
-						break;
-					case ZEND_SEND_ARRAY:
-					case ZEND_SEND_UNPACK:
-						if (level == 0) {
-							do_exit = 1;
-						}
-						break;
-				}
-				if (!do_exit) {
-					opline--;
-				}
-			} while (!do_exit);
-			if (call->prev_execute_data) {
-				/* skip current call region */
-				level = 0;
-				do_exit = 0;
-				do {
-					switch (opline->opcode) {
-						case ZEND_DO_FCALL:
-						case ZEND_DO_ICALL:
-						case ZEND_DO_UCALL:
-						case ZEND_DO_FCALL_BY_NAME:
-							level++;
-							break;
-						case ZEND_INIT_FCALL:
-						case ZEND_INIT_FCALL_BY_NAME:
-						case ZEND_INIT_NS_FCALL_BY_NAME:
-						case ZEND_INIT_DYNAMIC_CALL:
-						case ZEND_INIT_USER_CALL:
-						case ZEND_INIT_METHOD_CALL:
-						case ZEND_INIT_STATIC_METHOD_CALL:
-						case ZEND_NEW:
-							if (level == 0) {
-								do_exit = 1;
-							}
-							level--;
-							break;
-					}
-					opline--;
-				} while (!do_exit);
-			}
+		case ZEND_INIT_FCALL_BY_NAME:
+		case ZEND_INIT_FCALL:
+		case ZEND_INIT_NS_FCALL_BY_NAME:
+		case ZEND_INIT_METHOD_CALL:
+		case ZEND_INIT_STATIC_METHOD_CALL:
+		case ZEND_INIT_USER_CALL:
+		case ZEND_INIT_DYNAMIC_CALL:
+			ZEND_CALL_NUM_ARGS(call) = 0;
+			break;
 
-			zend_vm_stack_free_args(EX(call));
-
-			if (ZEND_CALL_INFO(call) & ZEND_CALL_RELEASE_THIS) {
-				if (ZEND_CALL_INFO(call) & ZEND_CALL_CTOR) {
-					if (!(ZEND_CALL_INFO(call) & ZEND_CALL_CTOR_RESULT_UNUSED)) {
-						GC_REFCOUNT(Z_OBJ(call->This))--;
-					}
-					if (GC_REFCOUNT(Z_OBJ(call->This)) == 1) {
-						zend_object_store_ctor_failed(Z_OBJ(call->This));
-					}
-				}
-				OBJ_RELEASE(Z_OBJ(call->This));
-			}
-			if (call->func->common.fn_flags & ZEND_ACC_CLOSURE) {
-				zend_object_release((zend_object *) call->func->common.prototype);
-			} else if (call->func->common.fn_flags & ZEND_ACC_CALL_VIA_TRAMPOLINE) {
-				zend_string_release(call->func->common.function_name);
-				zend_free_trampoline(call->func);
-			}
-
-			EX(call) = call->prev_execute_data;
-			zend_vm_stack_free_call_frame(call);
-			call = EX(call);
-		} while (call);
+		case ZEND_SEND_VAL:
+		case ZEND_SEND_VAR_EX:
+		case ZEND_SEND_REF:
+		case ZEND_SEND_VAR_NO_REF:
+		case ZEND_SEND_VAL_EX:
+		case ZEND_SEND_VAR:
+			ZEND_CALL_NUM_ARGS(call) = last_op->op2.num;
+			break;
 	}
+
+	zend_vm_stack_free_args(call);
+
+	if (ZEND_CALL_INFO(call) & ZEND_CALL_RELEASE_THIS) {
+		if (ZEND_CALL_INFO(call) & ZEND_CALL_CTOR) {
+			if (!(ZEND_CALL_INFO(call) & ZEND_CALL_CTOR_RESULT_UNUSED)) {
+				GC_REFCOUNT(Z_OBJ(call->This))--;
+			}
+			if (GC_REFCOUNT(Z_OBJ(call->This)) == 1) {
+				zend_object_store_ctor_failed(Z_OBJ(call->This));
+			}
+		}
+		OBJ_RELEASE(Z_OBJ(call->This));
+	}
+	if (call->func->common.fn_flags & ZEND_ACC_CLOSURE) {
+		zend_object_release((zend_object *) call->func->common.prototype);
+	} else if (call->func->common.fn_flags & ZEND_ACC_CALL_VIA_TRAMPOLINE) {
+		zend_string_release(call->func->common.function_name);
+		zend_free_trampoline(call->func);
+	}
+
+	zend_vm_stack_free_call_frame(call);
 }
 /* }}} */
 
-static void cleanup_live_vars(zend_execute_data *execute_data, uint32_t op_num, uint32_t catch_op_num) /* {{{ */
+void zend_cleanup_live_vars(zend_execute_data *execute_data, uint32_t op_num, uint32_t catch_op_num) /* {{{ */
 {
 	int i;
 
@@ -2620,11 +2552,6 @@ static void cleanup_live_vars(zend_execute_data *execute_data, uint32_t op_num, 
 	}
 }
 /* }}} */
-
-void zend_cleanup_unfinished_execution(zend_execute_data *execute_data, uint32_t op_num, uint32_t catch_op_num) {
-	cleanup_unfinished_calls(execute_data, op_num);
-	cleanup_live_vars(execute_data, op_num, catch_op_num);
-}
 
 #ifdef HAVE_GCC_GLOBAL_REGS
 # if defined(__GNUC__) && ZEND_GCC_VERSION >= 4008 && defined(i386)
