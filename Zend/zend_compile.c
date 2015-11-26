@@ -1892,7 +1892,6 @@ static void zend_find_live_range(zend_op *opline, zend_uchar type, uint32_t var)
 	while (def != CG(active_op_array)->opcodes) {
 		def--;
 		if (def->result_type == type && def->result.var == var) {
-			uint32_t var = def->result.var;
 			if (def->opcode == ZEND_ADD_ARRAY_ELEMENT ||
 			    def->opcode == ZEND_ROPE_ADD) {
 			    /* not a real definition */
@@ -1925,7 +1924,7 @@ static void zend_find_live_range(zend_op *opline, zend_uchar type, uint32_t var)
 				zend_start_live_range(CG(active_op_array),
 					def + 1 - CG(active_op_array)->opcodes),
 				opline - CG(active_op_array)->opcodes,
-				ZEND_LIVE_TMPVAR, var);
+				ZEND_LIVE_TMPVAR, def->result.var);
 		    break;
 		}
 	}

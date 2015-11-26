@@ -52,7 +52,7 @@ static void zend_generator_cleanup_unfinished_execution(zend_generator *generato
 		EG(vm_stack_end) = generator->stack->end;
 		EG(vm_stack) = generator->stack;
 
-		zend_cleanup_live_vars(execute_data, op_num, 0);
+		zend_cleanup_unfinished_execution(execute_data, op_num, 0);
 
 		generator->stack = EG(vm_stack);
 		generator->stack->top = EG(vm_stack_top);
