@@ -2051,10 +2051,10 @@ PHP_FUNCTION(array_fill_keys)
 		ZVAL_DEREF(entry);
 		Z_TRY_ADDREF_P(val);
 		if (Z_TYPE_P(entry) == IS_LONG) {
-			zend_hash_index_update(Z_ARRVAL_P(return_value), Z_LVAL_P(entry), val);
+			zend_hash_index_update_exception(Z_ARRVAL_P(return_value), Z_LVAL_P(entry), val);
 		} else {
 			zend_string *key = zval_get_string(entry);
-			zend_symtable_update(Z_ARRVAL_P(return_value), key, val);
+			zend_symtable_update_exception(Z_ARRVAL_P(return_value), key, val);
 			zend_string_release(key);
 		}
 	} ZEND_HASH_FOREACH_END();
@@ -2950,14 +2950,20 @@ PHPAPI int php_array_merge_recursive(HashTable *dest, HashTable *src) /* {{{ */
 	zend_string *string_key;
 
 	ZEND_HASH_FOREACH_STR_KEY_VAL(src, string_key, src_entry) {
+		if (Z_REFCOUNTED_P(src_entry)) {
+			Z_ADDREF_P(src_entry);
+		}
 		if (string_key) {
-			if ((dest_entry = zend_hash_find(dest, string_key)) != NULL) {
+			if ((dest_entry = zend_hash_add_or_return(dest, string_key, src_entry)) != NULL) {
 				zval *src_zval = src_entry;
 				zval *dest_zval = dest_entry;
 				HashTable *thash;
 				zval tmp;
 				int ret;
 
+				if (Z_REFCOUNTED_P(src_entry)) {
+					Z_DELREF_P(src_entry);
+				}
 				ZVAL_DEREF(src_zval);
 				ZVAL_DEREF(dest_zval);
 				thash = Z_TYPE_P(dest_zval) == IS_ARRAY ? Z_ARRVAL_P(dest_zval) : NULL;
@@ -3011,16 +3017,8 @@ PHPAPI int php_array_merge_recursive(HashTable *dest, HashTable *src) /* {{{ */
 					zend_hash_next_index_insert(Z_ARRVAL_P(dest_zval), src_zval);
 				}
 				zval_ptr_dtor(&tmp);
-			} else {
-				if (Z_REFCOUNTED_P(src_entry)) {
-					Z_ADDREF_P(src_entry);
-				}
-				zend_hash_add_new(dest, string_key, src_entry);
 			}
 		} else {
-			if (Z_REFCOUNTED_P(src_entry)) {
-				Z_ADDREF_P(src_entry);
-			}
 			zend_hash_next_index_insert_new(dest, src_entry);
 		}
 	} ZEND_HASH_FOREACH_END();
@@ -3038,7 +3036,7 @@ PHPAPI int php_array_merge(HashTable *dest, HashTable *src) /* {{{ */
 			if (Z_REFCOUNTED_P(src_entry)) {
 				Z_ADDREF_P(src_entry);
 			}
-			zend_hash_update(dest, string_key, src_entry);
+			zend_hash_update_exception(dest, string_key, src_entry);
 		} else {
 			if (Z_REFCOUNTED_P(src_entry)) {
 				Z_ADDREF_P(src_entry);
@@ -3509,12 +3507,12 @@ PHP_FUNCTION(array_column)
 
 		Z_TRY_ADDREF_P(zcolval);
 		if (zkeyval && Z_TYPE_P(zkeyval) == IS_STRING) {
-			zend_symtable_update(Z_ARRVAL_P(return_value), Z_STR_P(zkeyval), zcolval);
+			zend_symtable_update_exception(Z_ARRVAL_P(return_value), Z_STR_P(zkeyval), zcolval);
 		} else if (zkeyval && Z_TYPE_P(zkeyval) == IS_LONG) {
-			add_index_zval(return_value, Z_LVAL_P(zkeyval), zcolval);
+			zend_hash_index_update_exception(Z_ARRVAL_P(return_value), Z_LVAL_P(zkeyval), zcolval);
 		} else if (zkeyval && Z_TYPE_P(zkeyval) == IS_OBJECT) {
 			zend_string *key = zval_get_string(zkeyval);
-			zend_symtable_update(Z_ARRVAL_P(return_value), key, zcolval);
+			zend_symtable_update_exception(Z_ARRVAL_P(return_value), key, zcolval);
 			zend_string_release(key);
 		} else {
 			add_next_index_zval(return_value, zcolval);
@@ -3647,14 +3645,14 @@ PHP_FUNCTION(array_flip)
 			} else {
 				ZVAL_LONG(&data, num_idx);
 			}
-			zend_hash_index_update(Z_ARRVAL_P(return_value), Z_LVAL_P(entry), &data);
+			zend_hash_index_update_exception(Z_ARRVAL_P(return_value), Z_LVAL_P(entry), &data);
 		} else if (Z_TYPE_P(entry) == IS_STRING) {
 			if (str_idx) {
 				ZVAL_STR_COPY(&data, str_idx);
 			} else {
 				ZVAL_LONG(&data, num_idx);
 			}
-			zend_symtable_update(Z_ARRVAL_P(return_value), Z_STR_P(entry), &data);
+			zend_symtable_update_exception(Z_ARRVAL_P(return_value), Z_STR_P(entry), &data);
 		} else {
 			php_error_docref(NULL, E_WARNING, "Can only flip STRING and INTEGER values!");
 		}
@@ -5517,13 +5515,16 @@ PHP_FUNCTION(array_combine)
 			} else if (Z_TYPE(values->arData[pos_values].val) != IS_UNDEF) {
 				entry_values = &values->arData[pos_values].val;
 				if (Z_TYPE_P(entry_keys) == IS_LONG) {
-					entry_values = zend_hash_index_update(Z_ARRVAL_P(return_value),
+					entry_values = zend_hash_index_update_exception(Z_ARRVAL_P(return_value),
 						Z_LVAL_P(entry_keys), entry_values);
 				} else {
 					zend_string *key = zval_get_string(entry_keys);
-					entry_values = zend_symtable_update(Z_ARRVAL_P(return_value),
+					entry_values = zend_symtable_update_exception(Z_ARRVAL_P(return_value),
 						key, entry_values);
 					zend_string_release(key);
+				}
+				if (UNEXPECTED(entry_values == &EG(error_zval))) {
+					return;
 				}
 				zval_add_ref(entry_values);
 				pos_values++;

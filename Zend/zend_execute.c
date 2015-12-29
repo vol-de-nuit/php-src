@@ -1215,7 +1215,7 @@ fast_assign:
 						Z_ADDREF_P(value);
 					}
 				}
-				zend_hash_add_new(zobj->properties, Z_STR_P(property_name), value);
+				zend_hash_update_exception(zobj->properties, Z_STR_P(property_name), value);
 				if (retval) {
 					ZVAL_COPY(retval, value);
 				}
@@ -1582,7 +1582,7 @@ num_index:
 					break;
 				case BP_VAR_RW:
 					zend_error(E_NOTICE,"Undefined offset: " ZEND_LONG_FMT, hval);
-					retval = zend_hash_index_update(ht, hval, &EG(uninitialized_zval));
+					retval = zend_hash_index_update_exception(ht, hval, &EG(uninitialized_zval));
 					break;
 				EMPTY_SWITCH_DEFAULT_CASE()
 			}
@@ -1639,7 +1639,7 @@ str_index:
 					break;
 				case BP_VAR_RW:
 					zend_error(E_NOTICE,"Undefined index: %s", ZSTR_VAL(offset_key));
-					retval = zend_hash_update(ht, offset_key, &EG(uninitialized_zval));
+					retval = zend_hash_update_exception(ht, offset_key, &EG(uninitialized_zval));
 					break;
 				EMPTY_SWITCH_DEFAULT_CASE()
 			}

@@ -5174,11 +5174,11 @@ ZEND_VM_C_LABEL(add_again):
 				}
 			}
 ZEND_VM_C_LABEL(str_index):
-			zend_hash_update(Z_ARRVAL_P(EX_VAR(opline->result.var)), str, expr_ptr);
+			zend_hash_update_exception(Z_ARRVAL_P(EX_VAR(opline->result.var)), str, expr_ptr);
 		} else if (EXPECTED(Z_TYPE_P(offset) == IS_LONG)) {
 			hval = Z_LVAL_P(offset);
 ZEND_VM_C_LABEL(num_index):
-			zend_hash_index_update(Z_ARRVAL_P(EX_VAR(opline->result.var)), hval, expr_ptr);
+			zend_hash_index_update_exception(Z_ARRVAL_P(EX_VAR(opline->result.var)), hval, expr_ptr);
 		} else if ((OP2_TYPE & (IS_VAR|IS_CV)) && EXPECTED(Z_TYPE_P(offset) == IS_REFERENCE)) {
 			offset = Z_REFVAL_P(offset);
 			ZEND_VM_C_GOTO(add_again);

@@ -4596,6 +4596,9 @@ PHP_FUNCTION(parse_str)
 		sapi_module.treat_data(PARSE_STRING, res, &ret);
 		ZVAL_COPY_VALUE(arrayArg, &ret);
 	}
+
+	/* parse_str() tries to parse as much as possible (per treat_data behavior), hence we just ignore possible exceptions */
+	zend_clear_exception();
 }
 /* }}} */
 
