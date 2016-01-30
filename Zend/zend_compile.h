@@ -682,8 +682,10 @@ struct _zend_execute_data {
 #define IS_VAR		(1<<2)
 #define IS_UNUSED	(1<<3)	/* Unused variable */
 #define IS_CV		(1<<4)	/* Compiled variable */
+#define IS_ANY          0x1f /* mask */
 
 #define EXT_TYPE_UNUSED	(1<<5)
+#define EXT_OP_EXTENDED (1<<6)
 
 #include "zend_globals.h"
 

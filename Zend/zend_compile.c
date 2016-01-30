@@ -732,7 +732,7 @@ void zend_do_free(znode *op1) /* {{{ */
 		while (opline->opcode == ZEND_END_SILENCE || opline->opcode == ZEND_EXT_FCALL_END || opline->opcode == ZEND_OP_DATA) {
 			opline--;
 		}
-		if (opline->result_type == IS_VAR
+		if ((opline->result_type & IS_ANY) == IS_VAR
 			&& opline->result.var == op1->u.op.var) {
 			if (opline->opcode == ZEND_FETCH_R ||
 			    opline->opcode == ZEND_FETCH_DIM_R ||
@@ -1964,7 +1964,7 @@ static void zend_find_live_range(zend_op *opline, zend_uchar type, uint32_t var)
 
 	while (def != CG(active_op_array)->opcodes) {
 		def--;
-		if (def->result_type == type && def->result.var == var) {
+		if ((def->result_type & IS_ANY) == type && def->result.var == var) {
 			if (def->opcode == ZEND_ADD_ARRAY_ELEMENT ||
 			    def->opcode == ZEND_ROPE_ADD) {
 			    /* not a real definition */
@@ -2007,11 +2007,11 @@ static void zend_find_live_range(zend_op *opline, zend_uchar type, uint32_t var)
 static zend_always_inline int zend_is_def_range(zend_op *opline, zend_uchar type, uint32_t var) /* {{{ */
 {
 	while (1) {
-		if (opline->result_type == type && opline->result.var == var) {
+		if ((opline->result_type & IS_ANY) == type && opline->result.var == var) {
 			return opline->opcode != ZEND_ADD_ARRAY_ELEMENT &&
 				opline->opcode != ZEND_ROPE_ADD;
 		} else if (opline->opcode == ZEND_OP_DATA) {
-			return (opline-1)->result_type == type &&
+			return ((opline-1)->result_type & IS_ANY) == type &&
 				(opline-1)->result.var == var;
 		} else if (opline->opcode == ZEND_END_SILENCE ||
 		           opline->opcode == ZEND_NOP ||
@@ -2852,6 +2852,7 @@ void zend_compile_assign(znode *result, zend_ast *ast) /* {{{ */
 
 			opline = zend_delayed_compile_end(offset);
 			opline->opcode = ZEND_ASSIGN_DIM;
+			opline->result_type |= EXT_OP_EXTENDED;
 
 			opline = zend_emit_op_data(&expr_node);
 			return;
@@ -2862,6 +2863,7 @@ void zend_compile_assign(znode *result, zend_ast *ast) /* {{{ */
 
 			opline = zend_delayed_compile_end(offset);
 			opline->opcode = ZEND_ASSIGN_OBJ;
+			opline->result_type |= EXT_OP_EXTENDED;
 
 			zend_emit_op_data(&expr_node);
 			return;

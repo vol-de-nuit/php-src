@@ -3588,7 +3588,7 @@ static void zend_update_type_info(const zend_op_array *op_array,
 			}
 			if (ssa_ops[i].result_def >= 0) {
 				tmp = MAY_BE_ANY | MAY_BE_ARRAY_KEY_ANY | MAY_BE_ARRAY_OF_ANY | MAY_BE_ARRAY_OF_REF | MAY_BE_ERROR;
-				if (opline->result_type == IS_TMP_VAR) {
+				if (opline->result_type & IS_TMP_VAR) {
 					tmp |= MAY_BE_RC1;
 				} else {
 					tmp |= MAY_BE_REF | MAY_BE_RC1 | MAY_BE_RCN;
@@ -3650,7 +3650,7 @@ unknown_opcode:
 			}
 			if (ssa_ops[i].result_def >= 0) {
 				tmp = MAY_BE_ANY | MAY_BE_ARRAY_KEY_ANY | MAY_BE_ARRAY_OF_ANY | MAY_BE_ARRAY_OF_REF;
-				if (opline->result_type == IS_TMP_VAR) {
+				if ((opline->result_type & IS_ANY) == IS_TMP_VAR) {
 					tmp |= MAY_BE_RC1;
 				} else {
 					tmp |= MAY_BE_REF | MAY_BE_RC1 | MAY_BE_RCN;

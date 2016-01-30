@@ -124,7 +124,7 @@ static int find_adjusted_tmp_var(const zend_op_array *op_array, uint32_t build_f
 	zend_op *op = opline;
 	while (op != op_array->opcodes) {
 		op--;
-		if (op->result_type != IS_TMP_VAR || op->result.var != var_num) {
+		if ((op->result_type & (IS_ANY & ~IS_TMP_VAR)) || op->result.var != var_num) {
 			continue;
 		}
 
@@ -418,13 +418,12 @@ static int zend_ssa_rename(const zend_op_array *op_array, uint32_t build_flags, 
 				default:
 					break;
 			}
-			if (opline->result_type == IS_CV) {
+			if (opline->result_type & IS_CV) {
 				ssa_ops[k].result_def = ssa_vars_count;
 				var[EX_VAR_TO_NUM(opline->result.var)] = ssa_vars_count;
 				ssa_vars_count++;
 				//NEW_SSA_VAR(opline->result.var)
-			} else if (opline->result_type == IS_VAR ||
-			           opline->result_type == IS_TMP_VAR) {
+			} else if (opline->result_type & (IS_VAR | IS_TMP_VAR)) {
 				ssa_ops[k].result_def = ssa_vars_count;
 				var[EX_VAR_TO_NUM(opline->result.var)] = ssa_vars_count;
 				ssa_vars_count++;

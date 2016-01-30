@@ -184,13 +184,12 @@ op2_use:
 						}
 					}
 				}
-				if (opline->result_type == IS_CV) {
+				if (opline->result_type & IS_CV) {
 					if (!DFG_ISSET(use, set_size, j, EX_VAR_TO_NUM(opline->result.var))) {
 						DFG_SET(def, set_size, j, EX_VAR_TO_NUM(opline->result.var));
 					}
 					DFG_SET(gen, set_size, j, EX_VAR_TO_NUM(opline->result.var));
-				} else if (opline->result_type == IS_VAR ||
-						   opline->result_type == IS_TMP_VAR) {
+				} else if (opline->result_type & (IS_VAR | IS_TMP_VAR)) {
 					if (!DFG_ISSET(use, set_size, j, EX_VAR_TO_NUM(opline->result.var))) {
 						DFG_SET(def, set_size, j, EX_VAR_TO_NUM(opline->result.var));
 					}

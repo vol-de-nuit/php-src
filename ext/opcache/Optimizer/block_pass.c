@@ -501,7 +501,7 @@ static void zend_optimize_block(zend_basic_block *block, zend_op_array *op_array
 			optimize_jmpznz:
 				if (opline->op1_type == IS_TMP_VAR &&
 				    (!zend_bitset_in(used_ext, VAR_NUM(opline->op1.var)) ||
-				     (opline->result_type == opline->op1_type &&
+				     ((opline->result_type & IS_ANY) == opline->op1_type &&
 				      opline->result.var == opline->op1.var))) {
 					src = VAR_SOURCE(opline->op1);
 					if (src) {
@@ -740,7 +740,7 @@ optimize_const_unary_op:
 				break;
 
 			case ZEND_QM_ASSIGN:
-				if (opline->op1_type == opline->result_type &&
+				if (opline->op1_type == (opline->result_type & IS_ANY) &&
 				    opline->op1.var == opline->result.var) {
 					/* strip T = QM_ASSIGN(T) */
 					MAKE_NOP(opline);
@@ -749,7 +749,7 @@ optimize_const_unary_op:
 		}
 
 		/* get variable source */
-		if (opline->result_type == IS_VAR || opline->result_type == IS_TMP_VAR) {
+		if (opline->result_type & (IS_VAR | IS_TMP_VAR)) {
 			SET_VAR_SOURCE(opline);
 		}
 		opline++;
@@ -1526,10 +1526,10 @@ static void zend_t_usage(zend_cfg *cfg, zend_op_array *op_array, zend_bitset use
 				}
 			}
 
-			if (opline->result_type == IS_VAR) {
+			if (opline->result_type & IS_VAR) {
 				var_num = VAR_NUM(opline->result.var);
 				zend_bitset_incl(defined_here, var_num);
-			} else if (opline->result_type == IS_TMP_VAR) {
+			} else if (opline->result_type & IS_TMP_VAR) {
 				var_num = VAR_NUM(opline->result.var);
 				switch (opline->opcode) {
 					case ZEND_ADD_ARRAY_ELEMENT:
@@ -1589,7 +1589,7 @@ static void zend_t_usage(zend_cfg *cfg, zend_op_array *op_array, zend_bitset use
 
 		while (opline >= end) {
 			/* usage checks */
-			if (opline->result_type == IS_VAR) {
+			if (opline->result_type & IS_VAR) {
 				if (!zend_bitset_in(usage, VAR_NUM(opline->result.var))) {
 					switch (opline->opcode) {
 						case ZEND_ASSIGN_ADD:
@@ -1618,7 +1618,7 @@ static void zend_t_usage(zend_cfg *cfg, zend_op_array *op_array, zend_bitset use
 				} else {
 					zend_bitset_excl(usage, VAR_NUM(opline->result.var));
 				}
-			} else if (opline->result_type == IS_TMP_VAR) {
+			} else if (opline->result_type & IS_TMP_VAR) {
 				if (!zend_bitset_in(usage, VAR_NUM(opline->result.var))) {
 					switch (opline->opcode) {
 						case ZEND_POST_INC:

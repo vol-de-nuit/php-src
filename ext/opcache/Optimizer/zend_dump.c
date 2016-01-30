@@ -112,11 +112,11 @@ static void zend_dump_unused_op(const zend_op *opline, znode_op op, uint32_t fla
 
 void zend_dump_var(const zend_op_array *op_array, zend_uchar var_type, int var_num)
 {
-	if (var_type == IS_CV && var_num < op_array->last_var) {
+	if ((var_type & IS_CV) && var_num < op_array->last_var) {
 		fprintf(stderr, "CV%d($%s)", var_num, op_array->vars[var_num]->val);
-	} else if (var_type == IS_VAR) {
+	} else if (var_type & IS_VAR) {
 		fprintf(stderr, "V%d", var_num);
-	} else if (var_type == IS_TMP_VAR) {
+	} else if (var_type & IS_TMP_VAR) {
 		fprintf(stderr, "T%d", var_num);
 	} else {
 		fprintf(stderr, "X%d", var_num);
@@ -393,9 +393,7 @@ static void zend_dump_op(const zend_op_array *op_array, const zend_basic_block *
 	fprintf(stderr, "%*c", 8-len, ' ');
 
 	if (!ssa || !ssa->ops || ssa->ops[opline - op_array->opcodes].result_use < 0) {
-		if (opline->result_type == IS_CV ||
-		    opline->result_type == IS_VAR ||
-		    opline->result_type == IS_TMP_VAR) {
+		if ((opline->result_type & (IS_CV | IS_VAR | IS_TMP_VAR)) && (opline->result_type & ~EXT_TYPE_UNUSED)) {
 			if (ssa && ssa->ops) {
 				int ssa_var_num = ssa->ops[opline - op_array->opcodes].result_def;
 				ZEND_ASSERT(ssa_var_num >= 0);
@@ -654,12 +652,10 @@ static void zend_dump_op(const zend_op_array *op_array, const zend_basic_block *
 			}
 		}
 	}
-	if (opline->result_type == IS_CONST) {
+	if (opline->result_type & IS_CONST) {
 		zend_dump_const(CRT_CONSTANT_EX(op_array, opline->result, (dump_flags & ZEND_DUMP_RT_CONSTANTS)));
 	} else if (ssa && ssa->ops && ssa->ops[opline - op_array->opcodes].result_use >= 0) {
-		if (opline->result_type == IS_CV ||
-		    opline->result_type == IS_VAR ||
-		    opline->result_type == IS_TMP_VAR) {
+		if ((opline->result_type & (IS_CV | IS_VAR | IS_TMP_VAR)) && (opline->result_type & ~EXT_TYPE_UNUSED)) {
 			if (ssa && ssa->ops) {
 				int ssa_var_num = ssa->ops[opline - op_array->opcodes].result_use;
 				if (ssa_var_num >= 0) {

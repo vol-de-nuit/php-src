@@ -310,7 +310,7 @@ continue_jmp_ex_optimization:
 					{
 						zend_op *op;
 						for(op = opline+1; op<end; op++) {
-							if(ZEND_RESULT_TYPE(op) == IS_TMP_VAR &&
+							if((ZEND_RESULT_TYPE(op) & IS_TMP_VAR) &&
 							   ZEND_RESULT(op).var == ZEND_RESULT(opline).var) {
 								break; /* can pass to part 2 */
 							}
@@ -344,7 +344,7 @@ continue_jmp_ex_optimization:
 
 						for(op = &op_array->opcodes[ZEND_OP2(opline).opline_num]; op<end; op++) {
 
-							if(ZEND_RESULT_TYPE(op) == IS_TMP_VAR &&
+							if((ZEND_RESULT_TYPE(op) & IS_TMP_VAR) &&
 							   ZEND_RESULT(op).var == ZEND_RESULT(opline).var) {
 								break; /* can pass to optimization */
 							}

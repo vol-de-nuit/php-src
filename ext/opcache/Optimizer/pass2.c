@@ -120,7 +120,7 @@ void zend_optimizer_pass2(zend_op_array *op_array)
 				 * assignment to Ti.
 				 */
 				if (ZEND_OP1_TYPE(opline) == IS_TMP_VAR &&
-				    ZEND_RESULT_TYPE(opline) == IS_TMP_VAR &&
+				    (ZEND_RESULT_TYPE(opline) & IS_TMP_VAR) &&
 				    ZEND_OP1(opline).var == ZEND_RESULT(opline).var) {
 					opline->opcode -= 3;
 					SET_UNUSED(opline->result);

@@ -41,7 +41,7 @@ static inline char *phpdbg_decode_op(
 {
 	char *decode = NULL;
 
-	switch (type) {
+	switch (type & (IS_ANY | EXT_TYPE_UNUSED)) {
 		case IS_CV: {
 			zend_string *var = ops->vars[EX_VAR_TO_NUM(op->var)];
 			spprintf(&decode, 0, "$%.*s%c",
