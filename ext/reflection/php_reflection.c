@@ -6109,102 +6109,6 @@ ZEND_METHOD(reflection_zend_extension, getCopyright)
 }
 /* }}} */
 
-static inline void php_reflection_call_magic(INTERNAL_FUNCTION_PARAMETERS) {
-	zend_fcall_info fci;
-	zend_fcall_info_cache fcc;
-
-	memset(&fci, 0, sizeof(zend_fcall_info));
-	memset(&fci, 0, sizeof(zend_fcall_info_cache));
-
-	fci.size = sizeof(zend_fcall_info);
-	fci.retval = return_value;
-
-	fcc.initialized = 1;
-	fcc.function_handler = (zend_function *) EX(func)->common.arg_info;
-	fci.params = (zval*) emalloc(sizeof(zval) * 2);
-	fci.param_count = 2;
-	ZVAL_STR(&fci.params[0], EX(func)->common.function_name);
-	array_init(&fci.params[1]);
-	zend_copy_parameters_array(ZEND_NUM_ARGS(), &fci.params[1]);
-
-	fci.object = Z_OBJ(EX(This));
-	fcc.object = Z_OBJ(EX(This));
-	fcc.calling_scope = EG(scope);
-
-	zend_call_function(&fci, &fcc);
-
-	zval_ptr_dtor(&fci.params[0]);
-	zval_ptr_dtor(&fci.params[1]);
-	efree(fci.params);
-
-	OBJ_RELEASE((zend_object *) EX(func)->op_array.prototype);
-}
-
-static int zend_create_closure_from_callable(zval *return_value, zval *callable) {
-	zend_fcall_info_cache fcc;
-	char *error = NULL;
-
-	zend_function *mptr;
-	zval instance;
-
-	if (!zend_is_callable_ex(callable, NULL, IS_CALLABLE_STRICT, NULL, &fcc, &error)) {
-		return FAILURE;
-	}
-
-	mptr = fcc.function_handler;
-	if (mptr == NULL) {
-		return FAILURE;
-	}
-
-	if (mptr->common.fn_flags & ZEND_ACC_CALL_VIA_TRAMPOLINE) {
-		zend_internal_function call;
-		memset(&call, 0, sizeof(zend_internal_function));
-
-		call.type = ZEND_INTERNAL_FUNCTION;
-		call.handler = php_reflection_call_magic;
-		call.function_name = mptr->common.function_name;
-		call.arg_info = (zend_internal_arg_info *) mptr->common.prototype;
-		call.scope = mptr->common.scope;
-
-		zend_free_trampoline(mptr);
-		mptr = (zend_function *) &call;
-        }
-
-	ZVAL_OBJ(&instance, fcc.object);
-	zend_create_closure(return_value, mptr, mptr->common.scope, fcc.object ? fcc.object->ce : NULL, fcc.object ? &instance : NULL);
-
-	return SUCCESS;
-}
-
-/* {{{ proto Closure closure(callable var)
-  Convert any callable that is valid in the current scope to be a closure that can be
-  passed around and will be valid in all scopes. For example to_closure($this, 'somePrivateMethod')
-  will allow the private method to be called from outside of the class, without giving public
-  access to the method */
-PHP_FUNCTION(closure)
-{
-	zval *callable;
-	int success;
-
-	if (zend_parse_parameters(ZEND_NUM_ARGS(), "z", &callable) == FAILURE) {
-		return;
-	}
-
-	if (Z_TYPE_P(callable) == IS_OBJECT && instanceof_function(Z_OBJCE_P(callable), zend_ce_closure)) {
-		// It's already a closure
-		RETURN_ZVAL(callable, 1, 1);
-	}
-
-	success = zend_create_closure_from_callable(return_value, callable);
-
-	if (success == FAILURE) {
-		//TODO - Improve error messages.
-		zend_clear_exception();
-		zend_throw_exception_ex(zend_ce_type_error, 0, "Failed to create closure from callable");
-	}
-}
-/* }}} */
-
 /* {{{ method tables */
 static const zend_function_entry reflection_exception_functions[] = {
 	PHP_FE_END
@@ -6650,7 +6554,6 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_closure, 0, 0, 1)
 ZEND_END_ARG_INFO()
 
 const zend_function_entry reflection_ext_functions[] = { /* {{{ */
-    PHP_FE(closure,		arginfo_closure)
 	PHP_FE_END
 }; /* }}} */
 

@@ -7,8 +7,8 @@ include('closureFunction.inc');
 
 echo 'Cannot access privateInstance method statically'."\n";
 try {
-	$fn = closure(['Foo', 'privateInstanceFunc']);
-	echo "Test failed to fail and return was : ".var_export($test, true)."\n";
+	$fn = Closure::fromCallable(['Foo', 'privateInstanceFunc']);
+	echo "Test failed to fail and return was : ".var_export($fn, true)."\n";
 }
 catch (\TypeError $te) {
 	//This is the expected outcome.
@@ -20,8 +20,8 @@ catch (\Throwable $t) {
 
 echo 'Cannot access privateInstance method statically with colon scheme'."\n";
 try {
-	$fn = closure('Foo::privateInstanceFunc');
-	echo "Test failed to fail and return was : ".var_export($test, true)."\n";
+	$fn = Closure::fromCallable('Foo::privateInstanceFunc');
+	echo "Test failed to fail and return was : ".var_export($fn, true)."\n";
 }
 catch (\TypeError $te) {
 	//This is the expected outcome.
@@ -32,8 +32,8 @@ catch (\Throwable $t) {
 
 echo 'Cannot access privateInstance method'."\n";
 try {
-	$fn = closure([new Foo, 'privateInstanceFunc']);
-	echo "Test failed to fail and return was : ".var_export($test, true)."\n";
+	$fn = Closure::fromCallable([new Foo, 'privateInstanceFunc']);
+	echo "Test failed to fail and return was : ".var_export($fn, true)."\n";
 }
 catch (\TypeError $te) {
 	//This is the expected outcome.
@@ -44,7 +44,7 @@ catch (\Throwable $t) {
 
 echo 'SubClass cannot access private instance method'."\n";
 try {
-	$fn = closure([new SubFoo, 'privateInstanceFunc']);
+	$fn = Closure::fromCallable([new SubFoo, 'privateInstanceFunc']);
 	echo "Test failed to fail, closure is : ".var_export($fn, true)."\n";
 }
 catch (\TypeError $te) {
@@ -56,7 +56,7 @@ catch (\Throwable $t) {
 
 echo 'Cannot access private static function of instance'."\n";
 try {
-	$fn = closure([new Foo, 'privateStaticFunction']);
+	$fn = Closure::fromCallable([new Foo, 'privateStaticFunction']);
 	echo "Test failed to fail, closure is : ".var_export($fn, true)."\n";
 }
 catch (\TypeError $te) {
@@ -68,7 +68,7 @@ catch (\Throwable $t) {
 
 echo 'Cannot access private static method statically'."\n";
 try {
-	$fn = closure(['Foo', 'privateStaticFunction']);
+	$fn = Closure::fromCallable(['Foo', 'privateStaticFunction']);
 	echo "Test failed to fail, closure is : ".var_export($fn, true)."\n";
 }
 catch (\TypeError $te) {
@@ -80,7 +80,7 @@ catch (\Throwable $t) {
 
 echo 'Cannot access private static method statically with colon scheme'."\n";
 try {
-	$fn = closure('Foo::privateStaticFunction');
+	$fn = Closure::fromCallable('Foo::privateStaticFunction');
 	echo "Test failed to fail, closure is : ".var_export($fn, true)."\n";
 }
 catch (\TypeError $te) {
@@ -92,7 +92,7 @@ catch (\Throwable $t) {
 
 echo 'Non-existent method should fail'."\n";
 try {
-	$fn = closure('Foo::nonExistentFunction');
+	$fn = Closure::fromCallable('Foo::nonExistentFunction');
 	echo "Test failed to fail, closure is : ".var_export($fn, true)."\n";
 }
 catch (\TypeError $te) {
@@ -104,7 +104,7 @@ catch (\Throwable $t) {
 
 echo 'Non-existent class should fail'."\n";
 try {
-	$fn = closure(['NonExistentClass', 'foo']);
+	$fn = Closure::fromCallable(['NonExistentClass', 'foo']);
 	echo "Test failed to fail, closure is : ".var_export($fn, true)."\n";
 }
 catch (\TypeError $te) {
@@ -116,7 +116,7 @@ catch (\Throwable $t) {
 
 echo 'Non-existent function should fail'."\n";
 try {
-	$fn = closure('thisDoesNotExist');
+	$fn = Closure::fromCallable('thisDoesNotExist');
 	echo "Test failed to fail, closure is : ".var_export($fn, true)."\n";
 }
 catch (\TypeError $te) {

@@ -6,49 +6,49 @@ Testing closure() functionality
 include('closureFunction.inc');
 
 echo 'Access public static function';
-$fn = closure(['Foo', 'publicStaticFunction']);
+$fn = Closure::fromCallable(['Foo', 'publicStaticFunction']);
 echo $fn(" OK".PHP_EOL);
 
 echo 'Access public static function with different case';
-$fn = closure(['fOo', 'publicStaticfUNCTION']);
+$fn = Closure::fromCallable(['fOo', 'publicStaticfUNCTION']);
 echo $fn(" OK".PHP_EOL);
 
 echo 'Access public static function with colon scheme';
-$fn = closure('Foo::publicStaticFunction');
+$fn = Closure::fromCallable('Foo::publicStaticFunction');
 echo $fn(" OK".PHP_EOL);
 
 echo 'Access public instance method of object';
-$fn = closure([new Foo, 'publicInstanceFunc']);
+$fn = Closure::fromCallable([new Foo, 'publicInstanceFunc']);
 echo $fn(" OK".PHP_EOL);
 
 echo 'Access public instance method of parent object through parent:: ';
-$fn = closure([new Foo, 'publicInstanceFunc']);
+$fn = Closure::fromCallable([new Foo, 'publicInstanceFunc']);
 echo $fn(" OK".PHP_EOL);
 
 echo 'Function that exists';
-$fn = closure('bar');
+$fn = Closure::fromCallable('bar');
 echo $fn(" OK".PHP_EOL);
 
 echo 'Function that exists with different spelling';
-$fn = closure('BAR');
+$fn = Closure::fromCallable('BAR');
 echo $fn(" OK".PHP_EOL);
 
 echo 'Closure is already a closure';
-$fn = closure($closure);
+$fn = Closure::fromCallable($closure);
 echo $fn(" OK".PHP_EOL);
 
 echo 'Class with public invokable';
-$fn = closure(new PublicInvokable);
+$fn = Closure::fromCallable(new PublicInvokable);
 echo $fn(" OK".PHP_EOL);
 
-echo "Instance return private method as callable";
+echo "Instance return private static method as callable";
 $foo = new Foo;
 $fn = $foo->closePrivateStatic();
 echo $fn(" OK".PHP_EOL);
 
-echo 'Instance return private static method';
+echo 'Instance return protected static method';
 $subFoo = new SubFoo;
-$fn = $subFoo->closeProtectdStaticMethod();
+$fn = $subFoo->closeProtectedStaticMethod();
 echo $fn(" OK".PHP_EOL);
 
 echo 'Subclass closure over parent class protected method';
@@ -82,11 +82,11 @@ $fn = $foo->getSelfColonParentProtectedInstanceMethod();
 echo $fn(" OK".PHP_EOL);
 
 echo 'MagicCall __call instance method ';
-$fn = closure([new MagicCall, 'nonExistentMethod']);
+$fn = Closure::fromCallable([new MagicCall, 'nonExistentMethod']);
 echo $fn(" OK".PHP_EOL);
 
 echo 'MagicCall __callStatic static method ';
-$fn = closure(['MagicCall', 'nonExistentMethod']);
+$fn = Closure::fromCallable(['MagicCall', 'nonExistentMethod']);
 echo $fn(" OK".PHP_EOL);
 
 

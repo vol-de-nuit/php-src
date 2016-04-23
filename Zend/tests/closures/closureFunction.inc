@@ -55,9 +55,11 @@ class Foo
 	
 	public function closePrivateStatic()
 	{
-		return closure([__CLASS__, 'privateStaticFunction']);
+		echo "foo";
+		
+		return Closure::fromCallable([__CLASS__, 'privateStaticFunction']);
 	}
-	
+
 	public function bar($param1)
 	{
 		echo "this is bar\n";
@@ -65,17 +67,17 @@ class Foo
 
 	public function getCallable()
 	{
-		return closure([$this, 'publicInstanceFunc']);
+		return Closure::fromCallable([$this, 'publicInstanceFunc']);
 	}
 
 	public function getSelfPublicInstance()
 	{
-		return closure([$this, 'publicInstanceFunc']);
+		return Closure::fromCallable([$this, 'publicInstanceFunc']);
 	}
 
 	public function getSelfColonPublicInstanceMethod()
 	{
-		return closure('self::publicInstanceFunc');
+		return Closure::fromCallable('self::publicInstanceFunc');
 	}
 }
 
@@ -85,44 +87,44 @@ class SubFoo extends Foo {
 	
 	public function closePrivateStaticInvalid()
 	{
-		return closure([__CLASS__, 'privateStaticFunction']);
+		return Closure::fromCallable([__CLASS__, 'privateStaticFunction']);
 	}
 	
 	
 	public function closePrivateInvalid()
 	{
-		return closure([$this, 'privateInstanceFunc']);
+		return Closure::fromCallable([$this, 'privateInstanceFunc']);
 	}
 	
-	public function closeProtectdStaticMethod()
+	public function closeProtectedStaticMethod()
 	{
-		return closure([__CLASS__, 'protectedStaticFunction']);
+		return Closure::fromCallable([__CLASS__, 'protectedStaticFunction']);
 	}
 	
 	public function closeProtectedValid()
 	{
-		return closure([$this, 'protectedInstanceFunc']);
+		return Closure::fromCallable([$this, 'protectedInstanceFunc']);
 	}
 
 	public function getParentPublicInstanceMethod()
 	{
-		return closure('parent::publicInstanceFunc');
+		return Closure::fromCallable('parent::publicInstanceFunc');
 	}
 	
 	public function getSelfColonParentPublicInstanceMethod()
 	{
-		return closure('self::publicInstanceFunc');
+		return Closure::fromCallable('self::publicInstanceFunc');
 	}
 	
 	
 	public function getSelfColonParentProtectedInstanceMethod()
 	{
-		return closure('self::protectedInstanceFunc');
+		return Closure::fromCallable('self::protectedInstanceFunc');
 	}
 
 	public function getSelfColonParentPrivateInstanceMethod()
 	{
-		return closure('self::privateInstanceFunc');
+		return Closure::fromCallable('self::privateInstanceFunc');
 	}
 }
 
@@ -161,14 +163,14 @@ function functionAccessProtected()
 {
 	$foo = new Foo;
 
-	return closure([$foo, 'protectedStaticFunction']);
+	return Closure::fromCallable([$foo, 'protectedStaticFunction']);
 }
 
 function functionAccessPrivate()
 {
 	$foo = new Foo;
 
-	return closure([$foo, 'privateStaticFunction']);
+	return Closure::fromCallable([$foo, 'privateStaticFunction']);
 }
 
 
@@ -176,7 +178,7 @@ function functionAccessMethodDoesntExist()
 {
 	$foo = new Foo;
 
-	return closure([$foo, 'thisDoesNotExist']);
+	return Closure::fromCallable([$foo, 'thisDoesNotExist']);
 }
 
 ?>

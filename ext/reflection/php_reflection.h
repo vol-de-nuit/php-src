@@ -30,8 +30,6 @@ extern zend_module_entry reflection_module_entry;
 
 BEGIN_EXTERN_C()
 
-PHP_FUNCTION(closure);
-
 /* Class entry pointers */
 extern PHPAPI zend_class_entry *reflector_ptr;
 extern PHPAPI zend_class_entry *reflection_exception_ptr;
