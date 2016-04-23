@@ -55,8 +55,6 @@ class Foo
 	
 	public function closePrivateStatic()
 	{
-		echo "foo";
-		
 		return Closure::fromCallable([__CLASS__, 'privateStaticFunction']);
 	}
 

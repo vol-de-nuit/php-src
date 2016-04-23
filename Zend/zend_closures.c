@@ -255,12 +255,6 @@ static int zend_create_closure_from_callable(zval *return_value, zval *callable)
 	zval instance;
 
 	if (!zend_is_callable_ex(callable, NULL, 0, NULL, &fcc, &error)) {
-		if (error != NULL) {
-			printf("Not callable bcause %s \n", error);
-		}
-		else {
-			printf("Not callable.\n");
-		}
 		return FAILURE;
 	}
 
