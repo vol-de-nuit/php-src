@@ -2,7 +2,7 @@
    +----------------------------------------------------------------------+
    | Zend Engine                                                          |
    +----------------------------------------------------------------------+
-   | Copyright (c) 1998-2015 Zend Technologies Ltd. (http://www.zend.com) |
+   | Copyright (c) 1998-2016 Zend Technologies Ltd. (http://www.zend.com) |
    +----------------------------------------------------------------------+
    | This source file is subject to version 2.00 of the Zend license,     |
    | that is bundled with this package in the file LICENSE, and is        |
@@ -198,6 +198,10 @@ typedef struct  _zend_mm_huge_list zend_mm_huge_list;
 # define PTR_FMT "0x%0.16lx"
 #else
 # define PTR_FMT "0x%0.8lx"
+#endif
+
+#ifdef MAP_HUGETLB
+int zend_mm_use_huge_pages = 0;
 #endif
 
 /*
@@ -462,7 +466,7 @@ static void *zend_mm_mmap(size_t size)
 	void *ptr;
 
 #ifdef MAP_HUGETLB
-	if (size == ZEND_MM_CHUNK_SIZE) {
+	if (zend_mm_use_huge_pages && size == ZEND_MM_CHUNK_SIZE) {
 		ptr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON | MAP_HUGETLB, -1, 0);
 		if (ptr != MAP_FAILED) {
 			return ptr;
@@ -506,9 +510,9 @@ static void zend_mm_munmap(void *addr, size_t size)
 /* number of trailing set (1) bits */
 static zend_always_inline int zend_mm_bitset_nts(zend_mm_bitset bitset)
 {
-#if (defined(__GNUC__) || __has_builtin(__builtin_ctzl)) && SIZEOF_ZEND_LONG == SIZEOF_LONG
+#if (defined(__GNUC__) || __has_builtin(__builtin_ctzl)) && SIZEOF_ZEND_LONG == SIZEOF_LONG && defined(PHP_HAVE_BUILTIN_CTZL)
 	return __builtin_ctzl(~bitset);
-#elif defined(__GNUC__) || __has_builtin(__builtin_ctzll)
+#elif (defined(__GNUC__) || __has_builtin(__builtin_ctzll)) && defined(PHP_HAVE_BUILTIN_CTZLL)
 	return __builtin_ctzll(~bitset);
 #elif defined(_WIN32)
 	unsigned long index;
@@ -545,9 +549,9 @@ static zend_always_inline int zend_mm_bitset_nts(zend_mm_bitset bitset)
 /* number of trailing zero bits (0x01 -> 1; 0x40 -> 6; 0x00 -> LEN) */
 static zend_always_inline int zend_mm_bitset_ntz(zend_mm_bitset bitset)
 {
-#if (defined(__GNUC__) || __has_builtin(__builtin_ctzl)) && SIZEOF_ZEND_LONG == SIZEOF_LONG
+#if (defined(__GNUC__) || __has_builtin(__builtin_ctzl)) && SIZEOF_ZEND_LONG == SIZEOF_LONG && defined(PHP_HAVE_BUILTIN_CTZL)
 	return __builtin_ctzl(bitset);
-#elif defined(__GNUC__) || __has_builtin(__builtin_ctzll)
+#elif (defined(__GNUC__) || __has_builtin(__builtin_ctzll)) && defined(PHP_HAVE_BUILTIN_CTZLL)
 	return __builtin_ctzll(bitset);
 #elif defined(_WIN32)
 	unsigned long index;
@@ -1161,7 +1165,7 @@ static zend_always_inline void zend_mm_free_large(zend_mm_heap *heap, zend_mm_ch
 /* higher set bit number (0->N/A, 1->1, 2->2, 4->3, 8->4, 127->7, 128->8 etc) */
 static zend_always_inline int zend_mm_small_size_to_bit(int size)
 {
-#if defined(__GNUC__) || __has_builtin(__builtin_clz)
+#if (defined(__GNUC__) || __has_builtin(__builtin_clz))  && defined(PHP_HAVE_BUILTIN_CLZ)
 	return (__builtin_clz(size) ^ 0x1f) + 1;
 #elif defined(_WIN32)
 	unsigned long index;
@@ -1202,17 +1206,19 @@ static zend_always_inline int zend_mm_small_size_to_bin(size_t size)
 	n = zend_mm_small_size_to_bit(size - 1);
 	return ((size-1) >> f1[n]) + f2[n];
 #else
-	int t1, t2, t3;
+	unsigned int t1, t2;
 
-	if (UNEXPECTED(size <= 8)) return 0;
-	t1 = (int)(size - 1);
-	t2 = zend_mm_small_size_to_bit(t1);
-	t3 = t2 - 6;
-	t3 = (t3 < 0) ? 0 : t3;
-	t2 = t3 + 3;
-	t1 = t1 >> t2;
-	t3 = t3 << 2;
-	return t1 + t3;
+	if (size <= 64) {
+		/* we need to support size == 0 ... */
+		return (size - !!size) >> 3;
+	} else {
+		t1 = size - 1;
+		t2 = zend_mm_small_size_to_bit(t1) - 3;
+		t1 = t1 >> t2;
+		t2 = t2 - 3;
+		t2 = t2 << 2;
+		return (int)(t1 + t2);
+	}
 #endif
 }
 
@@ -1351,6 +1357,10 @@ static zend_always_inline void *zend_mm_alloc_heap(zend_mm_heap *heap, size_t si
 	/* special handling for zero-size allocation */
 	size = MAX(size, 1);
 	size = ZEND_MM_ALIGNED_SIZE(size) + ZEND_MM_ALIGNED_SIZE(sizeof(zend_mm_debug_info));
+	if (UNEXPECTED(size < real_size)) {
+		zend_error_noreturn(E_ERROR, "Possible integer overflow in memory allocation (%zu + %zu)", ZEND_MM_ALIGNED_SIZE(real_size), ZEND_MM_ALIGNED_SIZE(sizeof(zend_mm_debug_info)));
+		return NULL;
+	}
 #endif
 	if (size <= ZEND_MM_MAX_SMALL_SIZE) {
 		ptr = zend_mm_alloc_small(heap, size, ZEND_MM_SMALL_SIZE_TO_BIN(size) ZEND_FILE_LINE_RELAY_CC ZEND_FILE_LINE_ORIG_RELAY_CC);
@@ -1460,7 +1470,15 @@ static void *zend_mm_realloc_heap(zend_mm_heap *heap, void *ptr, size_t size, si
 #if ZEND_DEBUG
 			size = real_size;
 #endif
+#ifdef ZEND_WIN32
+			/* On Windows we don't have ability to extend huge blocks in-place.
+			 * We allocate them with 2MB size granularity, to avoid many 
+			 * reallocations when they are extended by small pieces
+			 */
+			new_size = ZEND_MM_ALIGNED_SIZE_EX(size, MAX(REAL_PAGE_SIZE, ZEND_MM_CHUNK_SIZE));
+#else
 			new_size = ZEND_MM_ALIGNED_SIZE_EX(size, REAL_PAGE_SIZE);
+#endif
 			if (new_size == old_size) {
 #if ZEND_DEBUG
 				zend_mm_change_huge_block_size(heap, ptr, new_size, real_size ZEND_FILE_LINE_RELAY_CC ZEND_FILE_LINE_ORIG_RELAY_CC);
@@ -1505,7 +1523,9 @@ static void *zend_mm_realloc_heap(zend_mm_heap *heap, void *ptr, size_t size, si
 					heap->real_size += new_size - old_size;
 #endif
 #if ZEND_MM_STAT
+					heap->real_peak = MAX(heap->real_peak, heap->real_size);
 					heap->size += new_size - old_size;
+					heap->peak = MAX(heap->peak, heap->size);
 #endif
 #if ZEND_DEBUG
 					zend_mm_change_huge_block_size(heap, ptr, new_size, real_size ZEND_FILE_LINE_RELAY_CC ZEND_FILE_LINE_ORIG_RELAY_CC);
@@ -1616,9 +1636,19 @@ static void *zend_mm_realloc_heap(zend_mm_heap *heap, void *ptr, size_t size, si
 	}
 
 	/* Naive reallocation */
+#if ZEND_MM_STAT
+	do {
+		size_t orig_peak = heap->peak;
+		size_t orig_real_peak = heap->real_peak;
+#endif
 	ret = zend_mm_alloc_heap(heap, size ZEND_FILE_LINE_RELAY_CC ZEND_FILE_LINE_ORIG_RELAY_CC);
 	memcpy(ret, ptr, MIN(old_size, copy_size));
 	zend_mm_free_heap(heap, ptr ZEND_FILE_LINE_RELAY_CC ZEND_FILE_LINE_ORIG_RELAY_CC);
+#if ZEND_MM_STAT
+		heap->peak = MAX(orig_peak, heap->size);
+		heap->real_peak = MAX(orig_real_peak, heap->real_size);
+	} while (0);
+#endif
 	return ret;
 }
 
@@ -1708,7 +1738,15 @@ static void zend_mm_change_huge_block_size(zend_mm_heap *heap, void *ptr, size_t
 
 static void *zend_mm_alloc_huge(zend_mm_heap *heap, size_t size ZEND_FILE_LINE_DC ZEND_FILE_LINE_ORIG_DC)
 {
+#ifdef ZEND_WIN32
+	/* On Windows we don't have ability to extend huge blocks in-place.
+	 * We allocate them with 2MB size granularity, to avoid many 
+	 * reallocations when they are extended by small pieces
+	 */
+	size_t new_size = ZEND_MM_ALIGNED_SIZE_EX(size, MAX(REAL_PAGE_SIZE, ZEND_MM_CHUNK_SIZE));
+#else
 	size_t new_size = ZEND_MM_ALIGNED_SIZE_EX(size, REAL_PAGE_SIZE);
+#endif
 	void *ptr;
 
 #if ZEND_MM_LIMIT
@@ -1824,7 +1862,7 @@ static zend_mm_heap *zend_mm_init(void)
 	heap->peak = 0;
 #endif
 #if ZEND_MM_LIMIT
-	heap->limit = (Z_L(-1) >> Z_L(1));
+	heap->limit = ((size_t)Z_L(-1) >> (size_t)Z_L(1));
 	heap->overflow = 0;
 #endif
 #if ZEND_MM_CUSTOM
@@ -2012,6 +2050,27 @@ static zend_long zend_mm_find_leaks(zend_mm_heap *heap, zend_mm_chunk *p, int i,
 	return count;
 }
 
+static zend_long zend_mm_find_leaks_huge(zend_mm_heap *heap, zend_mm_huge_list *list)
+{
+	zend_long count = 0;
+	zend_mm_huge_list *prev = list;
+	zend_mm_huge_list *p = list->next;
+
+	while (p) {
+		if (p->dbg.filename == list->dbg.filename && p->dbg.lineno == list->dbg.lineno) {
+			prev->next = p->next;
+			zend_mm_chunk_free(heap, p->ptr, p->size);
+			zend_mm_free_heap(heap, p, NULL, 0, NULL, 0);
+			count++;
+		} else {
+			prev = p;
+		}
+		p = prev->next;
+	}
+
+	return count;
+}
+
 static void zend_mm_check_leaks(zend_mm_heap *heap)
 {
 	zend_mm_huge_list *list;
@@ -2026,8 +2085,6 @@ static void zend_mm_check_leaks(zend_mm_heap *heap)
 	while (list) {
 		zend_mm_huge_list *q = list;
 
-		heap->huge_list = list->next;
-
 		leak.addr = list->ptr;
 		leak.size = list->dbg.size;
 		leak.filename = list->dbg.filename;
@@ -2037,13 +2094,13 @@ static void zend_mm_check_leaks(zend_mm_heap *heap)
 
 		zend_message_dispatcher(ZMSG_LOG_SCRIPT_NAME, NULL);
 		zend_message_dispatcher(ZMSG_MEMORY_LEAK_DETECTED, &leak);
-//???		repeated = zend_mm_find_leaks_huge(segment, p);
+		repeated = zend_mm_find_leaks_huge(heap, list);
 		total += 1 + repeated;
 		if (repeated) {
 			zend_message_dispatcher(ZMSG_MEMORY_LEAK_REPEATED, (void *)(zend_uintptr_t)repeated);
 		}
 
-		list = list->next;
+		heap->huge_list = list = list->next;
 		zend_mm_chunk_free(heap, q->ptr, q->size);
 		zend_mm_free_heap(heap, q, NULL, 0, NULL, 0);
 	}
@@ -2275,7 +2332,7 @@ ZEND_API int is_zend_mm(void)
 #endif
 }
 
-#if !ZEND_DEBUG && !defined(_WIN32)
+#if !ZEND_DEBUG && (!defined(_WIN32) || defined(__clang__))
 #undef _emalloc
 
 #if ZEND_MM_CUSTOM
@@ -2374,7 +2431,6 @@ ZEND_API void ZEND_FASTCALL _efree_huge(void *ptr, size_t size)
 {
 
 	ZEND_MM_CUSTOM_DEALLOCATOR(ptr);
-	// TODO: use size???
 	zend_mm_free_huge(AG(mm_heap), ptr);
 }
 #endif
@@ -2594,6 +2650,12 @@ static void alloc_globals_ctor(zend_alloc_globals *alloc_globals)
 		alloc_globals->mm_heap->custom_heap.std._free = free;
 		alloc_globals->mm_heap->custom_heap.std._realloc = realloc;
 		return;
+	}
+#endif
+#ifdef MAP_HUGETLB
+	tmp = getenv("USE_ZEND_ALLOC_HUGE_PAGES");
+	if (tmp && zend_atoi(tmp, 0)) {
+		zend_mm_use_huge_pages = 1;
 	}
 #endif
 	ZEND_TSRMLS_CACHE_UPDATE();

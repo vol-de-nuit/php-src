@@ -2,7 +2,7 @@
   +----------------------------------------------------------------------+
   | PHP Version 7                                                        |
   +----------------------------------------------------------------------+
-  | Copyright (c) 1997-2015 The PHP Group                                |
+  | Copyright (c) 1997-2016 The PHP Group                                |
   +----------------------------------------------------------------------+
   | This source file is subject to version 3.01 of the PHP license,      |
   | that is bundled with this package in the file LICENSE, and is        |
@@ -16,7 +16,6 @@
   +----------------------------------------------------------------------+
 */
 
-/* $Id$ */
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -314,12 +313,12 @@ static int php_zip_add_file(struct zip *za, const char *filename, size_t filenam
 static int php_zip_parse_options(zval *options, zend_long *remove_all_path, char **remove_path, size_t *remove_path_len, char **add_path, size_t *add_path_len) /* {{{ */
 {
 	zval *option;
-	if ((option = zend_hash_str_find(HASH_OF(options), "remove_all_path", sizeof("remove_all_path") - 1)) != NULL) {
+	if ((option = zend_hash_str_find(Z_ARRVAL_P(options), "remove_all_path", sizeof("remove_all_path") - 1)) != NULL) {
 		*remove_all_path = zval_get_long(option);
 	}
 
 	/* If I add more options, it would make sense to create a nice static struct and loop over it. */
-	if ((option = zend_hash_str_find(HASH_OF(options), "remove_path", sizeof("remove_path") - 1)) != NULL) {
+	if ((option = zend_hash_str_find(Z_ARRVAL_P(options), "remove_path", sizeof("remove_path") - 1)) != NULL) {
 		if (Z_TYPE_P(option) != IS_STRING) {
 			php_error_docref(NULL, E_WARNING, "remove_path option expected to be a string");
 			return -1;
@@ -331,7 +330,7 @@ static int php_zip_parse_options(zval *options, zend_long *remove_all_path, char
 		}
 
 		if (Z_STRLEN_P(option) >= MAXPATHLEN) {
-			php_error_docref(NULL, E_WARNING, "remove_path string is too long (max: %i, %i given)",
+			php_error_docref(NULL, E_WARNING, "remove_path string is too long (max: %d, %zd given)",
 						MAXPATHLEN - 1, Z_STRLEN_P(option));
 			return -1;
 		}
@@ -339,7 +338,7 @@ static int php_zip_parse_options(zval *options, zend_long *remove_all_path, char
 		*remove_path = Z_STRVAL_P(option);
 	}
 
-	if ((option = zend_hash_str_find(HASH_OF(options), "add_path", sizeof("add_path") - 1)) != NULL) {
+	if ((option = zend_hash_str_find(Z_ARRVAL_P(options), "add_path", sizeof("add_path") - 1)) != NULL) {
 		if (Z_TYPE_P(option) != IS_STRING) {
 			php_error_docref(NULL, E_WARNING, "add_path option expected to be a string");
 			return -1;
@@ -351,7 +350,7 @@ static int php_zip_parse_options(zval *options, zend_long *remove_all_path, char
 		}
 
 		if (Z_STRLEN_P(option) >= MAXPATHLEN) {
-			php_error_docref(NULL, E_WARNING, "add_path string too long (max: %i, %i given)",
+			php_error_docref(NULL, E_WARNING, "add_path string too long (max: %d, %zd given)",
 						MAXPATHLEN - 1, Z_STRLEN_P(option));
 			return -1;
 		}
@@ -1282,7 +1281,7 @@ static PHP_NAMED_FUNCTION(zif_zip_entry_read)
 	}
 
 	if (zr_rsrc->zf) {
-		buffer = zend_string_alloc(len, 0);
+		buffer = zend_string_safe_alloc(1, len, 0, 0);
 		n = zip_fread(zr_rsrc->zf, ZSTR_VAL(buffer), ZSTR_LEN(buffer));
 		if (n > 0) {
 			ZSTR_VAL(buffer)[n] = '\0';
@@ -1506,7 +1505,7 @@ static ZIPARCHIVE_METHOD(close)
 	ze_obj = Z_ZIP_P(self);
 
 	if ((err = zip_close(intern))) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "%s", zip_strerror(intern));
+		php_error_docref(NULL, E_WARNING, "%s", zip_strerror(intern));
 		zip_discard(intern);
 	}
 
@@ -2668,7 +2667,7 @@ static ZIPARCHIVE_METHOD(extractTo)
 
 		for (i = 0; i < filecount; i++) {
 			char *file = (char*)zip_get_name(intern, i, ZIP_FL_UNCHANGED);
-			if (!php_zip_extract_file(intern, pathto, file, strlen(file))) {
+			if (!file || !php_zip_extract_file(intern, pathto, file, strlen(file))) {
 					RETURN_FALSE;
 			}
 		}
@@ -2729,7 +2728,7 @@ static void php_zip_get_from(INTERNAL_FUNCTION_PARAMETERS, int type) /* {{{ */
 		RETURN_FALSE;
 	}
 
-	buffer = zend_string_alloc(len, 0);
+	buffer = zend_string_safe_alloc(1, len, 0, 0);
 	n = zip_fread(zf, ZSTR_VAL(buffer), ZSTR_LEN(buffer));
 	if (n < 1) {
 		zend_string_free(buffer);
@@ -3134,7 +3133,6 @@ static PHP_MINFO_FUNCTION(zip)
 	php_info_print_table_start();
 
 	php_info_print_table_row(2, "Zip", "enabled");
-	php_info_print_table_row(2, "Extension Version","$Id$");
 	php_info_print_table_row(2, "Zip version", PHP_ZIP_VERSION);
 	php_info_print_table_row(2, "Libzip version", LIBZIP_VERSION);
 
