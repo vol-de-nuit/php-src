@@ -53,6 +53,11 @@ class Foo
 		return $param1;
 	}
 	
+	public function closePrivateValid()
+	{
+		return Closure::fromCallable([$this, 'privateInstanceFunc']);
+	}
+
 	public function closePrivateStatic()
 	{
 		return Closure::fromCallable([__CLASS__, 'privateStaticFunction']);

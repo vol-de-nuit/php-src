@@ -41,12 +41,17 @@ echo 'Class with public invokable';
 $fn = Closure::fromCallable(new PublicInvokable);
 echo $fn(" OK".PHP_EOL);
 
+echo "Instance return private method as callable";
+$foo = new Foo;
+$fn = $foo->closePrivateValid();
+echo $fn(" OK".PHP_EOL);
+
 echo "Instance return private static method as callable";
 $foo = new Foo;
 $fn = $foo->closePrivateStatic();
 echo $fn(" OK".PHP_EOL);
 
-echo 'Instance return protected static method';
+echo 'Instance return protected static method as callable';
 $subFoo = new SubFoo;
 $fn = $subFoo->closeProtectedStaticMethod();
 echo $fn(" OK".PHP_EOL);
@@ -58,7 +63,7 @@ echo $fn(" OK".PHP_EOL);
 
 echo 'Subclass closure over parent class static protected method';
 $subFoo = new SubFoo;
-$fn = $subFoo->closeProtectdStaticMethod();
+$fn = $subFoo->closeProtectedStaticMethod();
 echo $fn(" OK".PHP_EOL);
 
 echo 'Access public instance method of parent object through "parent::" ';
@@ -104,7 +109,8 @@ Function that exists with different spelling OK
 Closure is already a closure OK
 Class with public invokable OK
 Instance return private method as callable OK
-Instance return private static method OK
+Instance return private static method as callable OK
+Instance return protected static method as callable OK
 Subclass closure over parent class protected method OK
 Subclass closure over parent class static protected method OK
 Access public instance method of parent object through "parent::"  OK
